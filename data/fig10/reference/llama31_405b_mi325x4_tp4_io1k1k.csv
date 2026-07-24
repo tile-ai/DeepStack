@@ -1,0 +1,9 @@
+model,scenario,tp,BS,system_decode_tps,system_prefill_tps,total_wall_s,system_decode_duration_s,peak_kv_cache_pct,log_file
+Llama-3.1-405B-Instruct,io1024_1024,4,1,20.1,2108.4,51.3644,50.9576,0.6,llama31_405b_io1024_1024_bs1.log
+Llama-3.1-405B-Instruct,io1024_1024,4,2,37.82,2210.2,54.9283,54.1556,1.1,llama31_405b_io1024_1024_bs2.log
+Llama-3.1-405B-Instruct,io1024_1024,4,4,71.1,2137.9,59.2058,57.6073,2.2,llama31_405b_io1024_1024_bs4.log
+Llama-3.1-405B-Instruct,io1024_1024,4,8,132.18,2257.2,64.9988,61.9765,4.3,llama31_405b_io1024_1024_bs8.log
+Llama-3.1-405B-Instruct,io1024_1024,4,16,255.71,2281.89,70.0638,64.0721,8.9,llama31_405b_io1024_1024_bs16.log
+Llama-3.1-405B-Instruct,io1024_1024,4,32,461.21,2314.19,82.9011,71.0472,18.0,llama31_405b_io1024_1024_bs32.log
+Llama-3.1-405B-Instruct,io1024_1024,4,64,859.65,2334.46,99.7322,76.2361,35.0,llama31_405b_io1024_1024_bs64.log
+Llama-3.1-405B-Instruct,io1024_1024,4,128,1310.41,2338.74,146.9034,100.024,71.0,llama31_405b_io1024_1024_bs128.log

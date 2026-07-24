@@ -1,0 +1,16 @@
+.ae-env/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+build/
+dist/
+*.egg-info/
+docs/*.aux
+docs/*.fdb_latexmk
+docs/*.fls
+docs/*.log
+docs/*.out
+results/*
+!results/.gitkeep

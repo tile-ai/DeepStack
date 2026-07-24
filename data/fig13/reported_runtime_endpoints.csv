@@ -1,0 +1,3 @@
+implementation,wall_time_s,provenance
+DeepStack,0.1,"Reported endpoint in the paper text (0.1 s); no raw wall-clock log was retained"
+ASTRA-sim_NS-3,10800,"Reported endpoint in the paper text (3 h); no raw wall-clock log was retained"

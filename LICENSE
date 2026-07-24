@@ -1,0 +1,41 @@
+# DeepStack artifact licensing
+
+This repository is a mixed-license distribution.
+
+## Open-source components
+
+Except for the binary components, third-party files, and licensing materials
+identified below, the source code, artifact runners, scripts, documentation,
+manifests, and data in this repository are licensed under
+the Apache License, Version 2.0.
+
+The complete text is in `LICENSES/Apache-2.0.txt`.
+
+This scope notice, `LICENSING.md`, the controlling texts under `LICENSES/`,
+and adjacent `.so.license` files are licensing materials rather than part of
+the Apache-licensed work. They may be reproduced verbatim as required or
+permitted by their respective terms.
+
+## Proprietary binary components
+
+The following precompiled components are proprietary software and are not
+licensed under Apache-2.0:
+
+- `src/deepstack/mosaic/arch/_reference_model*.so`
+- `src/deepstack/mosaic/cost/_capacity*.so`
+- `src/deepstack/mosaic/noc/_model_support*.so`
+- `src/tilesight/tilesight/distributed/noc/_model_support*.so`
+
+They are licensed solely under
+`LICENSES/LicenseRef-DeepStack-AE-Binary-1.0.txt`. Each released binary has an
+adjacent `.license` file carrying its SPDX scope marker.
+
+Source code for these binaries and separately usable calibration materials
+are not provided. No separate rights in the binaries' embedded proprietary
+materials are granted except for the limited rights expressly stated in the
+binary license.
+
+## Third-party components
+
+Third-party files remain subject to their respective licenses and notices.
+See `THIRD_PARTY_NOTICES.md` and the license headers in those files.

@@ -1,0 +1,10 @@
+# Preserve released bytes exactly: reference/provenance checksums include the
+# original line endings of several external CSVs and vendored source files.
+* -text
+*.npz binary
+*.npy binary
+*.pdf binary
+*.png binary
+
+# The complete decode-DSE population exceeds GitHub's normal-file guidance.
+data/fig15/decode_dse_population_march2026.csv filter=lfs diff=lfs merge=lfs -text

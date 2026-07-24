@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Synthetic bank-wave witness</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+      background: #071019;
+      color: #dbe9f5;
+    }
+    body { margin: 0 auto; max-width: 1000px; padding: 42px 24px 64px; }
+    h1 { margin: 0; font-size: 2.1rem; }
+    h2 { margin-top: 34px; color: #79e1cf; }
+    .lead { color: #a9bdcd; max-width: 780px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border: 1px solid #42c8ae;
+      border-radius: 999px;
+      color: #79e1cf;
+      font-size: .8rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+      margin: 22px 0;
+    }
+    .card, table {
+      border: 1px solid #263b4c;
+      border-radius: 10px;
+      background: #0c1924;
+    }
+    .card { padding: 16px; }
+    .card b { display: block; color: #fff; font-size: 1.25rem; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid #263b4c; text-align: left; }
+    th { color: #8ca6ba; font-size: .8rem; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .attained { color: #79e1cf; font-weight: 700; }
+    code { color: #ffd58a; }
+    .note {
+      margin-top: 28px;
+      padding: 16px;
+      border-left: 3px solid #ffd58a;
+      background: #161b20;
+      color: #c5d0d8;
+    }
+  </style>
+</head>
+<body>
+  <span class="badge">synthetic preview</span>
+  <h1>Constructive bank-schedule witnesses</h1>
+  <p class="lead">
+    This offline preview uses toy inputs, not a hardware calibration. It shows
+    why the model's topology limit is constructive: an explicit reversible
+    swizzle produces a schedule whose measured makespan equals the independently
+    computed lower bound.
+  </p>
+
+  <h2>Configured toy geometry</h2>
+  <div class="cards">
+    <div class="card"><b>8 × 4</b>layers × banks/layer</div>
+    <div class="card"><b>32</b>sectors per row</div>
+    <div class="card"><b>3s + 7</b>row-job cycles for <code>s</code> sectors</div>
+    <div class="card"><b>1–64</b>supported sectors per row</div>
+  </div>
+
+  <h2>Explicit schedules</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Trace</th>
+        <th>Layout</th>
+        <th>Scheduled cycles</th>
+        <th>Model lower bound</th>
+        <th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>contiguous sectors</td>
+        <td>linear</td>
+        <td>103</td>
+        <td>10</td>
+        <td>packing headroom</td>
+      </tr>
+      <tr>
+        <td>contiguous sectors</td>
+        <td>sector XOR</td>
+        <td>10</td>
+        <td>10</td>
+        <td class="attained">attained</td>
+      </tr>
+      <tr>
+        <td>colliding full rows</td>
+        <td>linear</td>
+        <td>3296</td>
+        <td>103</td>
+        <td>bank conflict</td>
+      </tr>
+      <tr>
+        <td>colliding full rows</td>
+        <td>row XOR</td>
+        <td>103</td>
+        <td>103</td>
+        <td class="attained">attained</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    Equality is scoped to the configured analytical model. It demonstrates
+    that the modeled upper limit is schedulable; it is not a measured device
+    result. Run <code>python -m bank_oracle.visualization.generate_demo</code>
+    for the full interactive row-job and bank-map explorer.
+  </div>
+</body>
+</html>

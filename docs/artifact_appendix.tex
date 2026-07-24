@@ -1,0 +1,198 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[letterpaper,margin=0.58in,columnsep=0.24in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{flushend}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  urlcolor=blue!50!black,
+  pdftitle={DeepStack MICRO 2026 Artifact Appendix},
+  pdfauthor={DeepStack authors}
+}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2.2pt}
+\setlist{nosep,leftmargin=*,topsep=1.5pt}
+\titlespacing*{\section}{0pt}{5pt}{1.5pt}
+\titlespacing*{\subsection}{0pt}{3.5pt}{1pt}
+\titlespacing*{\subsubsection}{0pt}{2.5pt}{1pt}
+\titleformat{\section}{\bfseries\normalsize}{\thesection}{0.4em}{}
+\titleformat{\subsection}{\bfseries\small}{\thesubsection}{0.4em}{}
+\titleformat{\subsubsection}{\bfseries\itshape\small}{\thesubsubsection}{0.4em}{}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{DeepStack Artifact Appendix}
+\rhead{DeepStack}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.25pt}
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  frame=single,
+  framerule=0.3pt,
+  breaklines=true,
+  columns=fullflexible,
+  aboveskip=3pt,
+  belowskip=3pt,
+  xleftmargin=1pt,
+  xrightmargin=1pt,
+  backgroundcolor=\color{black!2}
+}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\begin{document}
+\appendix
+\section{Artifact Appendix}
+
+\subsection{Abstract}
+
+This artifact provides the implementation and automated evaluation workflow
+for DeepStack's analytical modeling and design-space exploration (DSE) of
+distributed 3D DRAM-stacked LLM accelerators. It reruns the fixed
+configurations underlying paper Figs.~8--12, Figs.~13--21, and Table~4; checks
+them against bundled, checksummed GPU and simulator references; and
+regenerates the paper-facing plots. No GPU, model weights, or external
+simulator is required.
+
+\subsection{Artifact check-list (meta-information)}
+
+{\small
+\begin{itemize}
+  \item {\bf Algorithm:} analytical latency, throughput, energy, thermal, and
+        network modeling with hierarchical DSE.
+  \item {\bf Program:} Python~3.11 package and staged \code{run.sh} workflow.
+  \item {\bf Compilation/Binary:} no local compilation; four licensed,
+        prebuilt CPython~3.11 x86-64 extensions are included.
+  \item {\bf Model:} DeepSeek-V3, Qwen3-235B-A22B, Llama-70B, and
+        kernel-level workload descriptions; no model weights.
+  \item {\bf Data set:} checksummed GPU/vLLM and ASTRA-Sim/NS-3 references,
+        fixed-configuration manifests, routing traces, and a recorded
+        301{,}728-row decode-DSE population.
+  \item {\bf Run-time environment:} x86-64 Linux, GNU Bash, Conda,
+        CPython~3.11, and glibc~2.29 or newer.
+  \item {\bf Hardware:} 32 CPU cores and 64~GiB RAM recommended; no GPU,
+        FPGA, or accelerator.
+  \item {\bf Metrics:} weighted MAPE, scaled tokens/s, bandwidth, speedup,
+        temperature, and area feasibility.
+  \item {\bf Output:} validated CSVs, run/verification manifests, and 16
+        figure groups in PNG and PDF.
+  \item {\bf Experiments:} 15 fail-fast stages plus independent verification.
+  \item {\bf Disk space:} approximately 5~GiB including the environment.
+  \item {\bf Preparation time:} approximately 5--10 minutes.
+  \item {\bf Experiment time:} 12.2 minutes on the 64-core/128-thread
+        packaging host with 32 workers; 30--45 minutes estimated on 32 cores.
+  \item {\bf Publicly available?:} GitHub and archived DOI.
+  \item {\bf Licenses:} Apache-2.0 for source and data; bundled extensions use
+        LicenseRef-DeepStack-AE-Binary-1.0.
+  \item {\bf Automation:} repository-local scripts; no external framework.
+  \item {\bf Archived DOI:}
+        \href{https://doi.org/10.5281/zenodo.21351389}{10.5281/zenodo.21351389}.
+\end{itemize}
+}
+
+\subsection{Description}
+
+\subsubsection{How to access}
+
+Clone \href{https://github.com/tile-ai/DeepStack}{github.com/tile-ai/DeepStack}
+(branch \code{ae}) or download the DOI archive above. The root
+\code{README.md} is the reviewer guide.
+
+\subsubsection{Hardware dependencies}
+
+Use a 64-bit x86 Linux host with 32 cores, 64~GiB RAM, and 5~GiB free
+storage. Lower core counts work with fewer workers and longer runtime. GPU and
+simulator measurements are bundled reference inputs and are not rerun.
+
+\subsubsection{Software dependencies}
+
+The artifact requires GNU Bash, Conda, CPython~3.11, and glibc~2.29 or newer.
+\code{./setup.sh} installs pinned dependencies. Four licensed prebuilt
+extensions provide protected model components; no compiler, CUDA, external
+simulator, or proprietary EDA tool is needed.
+
+\subsubsection{Data sets and models}
+
+All required references, configurations, routing traces, and plotting data are
+included and covered by \code{SHA256SUMS}. The artifact contains workload
+descriptions and routing metadata, but no prompts, weights, or hidden states.
+The complete area model and die-area breakdown are not distributed. Reference
+feasibility exposes only a feasible-SM count from a finite compiled capacity
+table.
+
+\subsection{Installation}
+
+\begin{lstlisting}[language=bash]
+./setup.sh
+conda run --no-capture-output -n deepstack-ae \
+  ./run.sh doctor
+\end{lstlisting}
+
+Installation succeeds when the second command prints \code{doctor: PASS}.
+
+\subsection{Experiment workflow}
+
+\begin{lstlisting}[language=bash]
+conda run --no-capture-output -n deepstack-ae \
+  ./run.sh quick --model-version both
+conda run --no-capture-output -n deepstack-ae \
+  ./run.sh reproduce --workers 32 \
+  --model-version both
+./verify.sh results/reproduce
+\end{lstlisting}
+
+Checked-in renderings under \code{prebuilt/figures/} are inspection-only
+previews. The workflow creates an independent result bundle under
+\code{results/reproduce/}; neither the model nor verifier reads the prebuilt
+directory.
+
+Regenerated paper-facing plots use \code{paper\_legacy};
+\code{current\_corrected} is separate diagnostic output. Paper Fig.~9
+additionally audits the frozen paper statistic separately from its legacy
+rerun. No reported statistic mixes the two paths.
+
+\subsection{Evaluation and expected results}
+
+A successful full run prints \code{workflow: PASS} and
+\code{Overall verification: PASS}, then produces 57 validated CSVs, 16 status
+markers, and 16 figure groups. Artifact stage IDs retain the accepted-revision
+numbering: paper Figs.~11, 12, and 13--21 map to \code{fig12}, \code{fig13},
+and \code{fig15}--\code{fig23}; the first three validation stages are
+unchanged.
+
+\begin{itemize}
+  \item {\bf Validation (paper Figs.~8--12):} H100 weighted MAPE
+        $8.366\%$; B200 frozen-paper MAPE $12.918976\%$ and legacy-rerun MAPE
+        $12.724500\%$; MI325X mean per-model weighted MAPE $13.095\%$;
+        sparse-attention legacy weighted MAPE $2.612\%$; and verified NoC
+        closure including the reported $108{,}000\times$ endpoint ratio.
+  \item {\bf Co-design (paper Figs.~13--21 and Table~4):} the workflow
+        regenerates the selected winners and sweeps, including the nine-layer
+        bandwidth peak, $39.62\%$ decrease by layer 12, and Table~4 speedups
+        of $2.7906\times$ and $9.4744\times$.
+\end{itemize}
+
+Exact checks and tolerances are in each stage's \code{summary.csv} and
+\code{docs/result\_matrix.md}. The full $\sim$$2.5\times10^{14}$-point search
+and the non-distributable hardware-emulation reference are outside the
+reproduced scope.
+
+\subsection{Experiment customization}
+
+Custom architecture, energy, NoC, and DSE interfaces and runnable synthetic
+examples are documented in \code{README.md} and \code{tests/}. They include
+caller-owned capacity providers or area estimators.
+
+\subsection{Notes}
+
+On failure, inspect the stage log named in \code{run\_manifest.csv}. For
+memory pressure, rerun with \code{--workers 16}.
+
+\end{document}

@@ -1,0 +1,4 @@
+model,display_model,points,paper_model_source,mape_pct,three_model_macro_mape_pct,rounded_paper_claim_pct
+Qwen3_235b_a22b,Qwen3 235B,10,modeling_data/merged_8xb200_decode_qwen_235b_0223.csv,7.5534387760109,12.1774222474606,12.18
+DeepSeekV3,DeepSeek V3,10,modeling_data/merged_8xb200_decode_dpsk_0224.csv,18.2033814878028,12.1774222474606,12.18
+Llama3_70b,Llama3 70B,10,modeling_data/merged_8xb200_decode_llama_3_70b_0222.csv,10.775446478568,12.1774222474606,12.18

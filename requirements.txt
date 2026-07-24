@@ -1,0 +1,15 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+ijson==3.5.1
+matplotlib==3.11.0
+networkx==3.6.1
+numpy==2.4.6
+pandas==3.0.3
+plotly==6.9.0
+PyYAML==6.0.3
+pytest==9.1.1
+regex==2026.7.10
+scipy==1.17.1
+seaborn==0.13.2
+sympy==1.14.0
+torch==2.13.0+cpu
+tqdm==4.68.4

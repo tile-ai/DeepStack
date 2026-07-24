@@ -1,0 +1,4 @@
+dram_total_layers,dram_active_layers,sm_count,smem_capacity_KiB,l1_throughput_Bpc,arch,noc,model,bs,minibatch,seq,tp,ep,ep1,ep2,sp,cp,dp,fsdp,pp,tp_transform_moe,kv_len_1,kv_len_2,kv_len_3,kv_len_4,scaled_stps_avg
+6,6,7,128,512,stacked_gpu_wgmma,torus_mesh_switch_1,DeepSeekV3,1024,512,1,4,32,32,1,1,1,1,False,2,replace_only,1024,1365,1707,2048,49700.00633099158
+7,7,6,128,1024,stacked_gpu_wgmma,torus_mesh_switch_1,DeepSeekV3,1024,512,1,4,32,32,1,1,1,1,False,2,replace_only,1024,1365,1707,2048,50330.06099468578
+7,7,6,128,1024,stacked_gpu_wgmma,torus_mesh_switch_1,DeepSeekV3,1024,1024,1,4,32,32,1,1,1,2,False,1,replace_only,1024,1365,1707,2048,51094.46116387095

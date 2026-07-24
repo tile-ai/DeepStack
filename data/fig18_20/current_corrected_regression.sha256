@@ -1,0 +1,23 @@
+{
+  "columns": [
+    "candidate_id",
+    "recomputed_raw_utps",
+    "recomputed_raw_stps",
+    "recomputed_scaled_utps",
+    "recomputed_scaled_stps",
+    "chip_power_W",
+    "noc_power_per_device_W",
+    "total_power_per_device_W",
+    "hit_power_wall",
+    "freq_scale_power",
+    "effective_power_W",
+    "effective_stps",
+    "tokens_per_joule",
+    "temperature_C"
+  ],
+  "format": "deepstack-fig18-20-regression-v1",
+  "model_version": "current_corrected",
+  "rows": 114,
+  "sha256": "b1313b3a7464ba07be0d7110562258235ffd3da24205a2c8e095a2404156da90",
+  "significant_digits": 10
+}

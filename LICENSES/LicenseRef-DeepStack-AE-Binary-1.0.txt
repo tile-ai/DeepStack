@@ -1,0 +1,121 @@
+DEEPSTACK ARTIFACT-EVALUATION PROPRIETARY BINARY LICENSE
+Version 1.0
+
+Copyright (c) 2026 DeepStack Authors (the "Licensor").
+All rights reserved.
+
+1. Covered Binaries
+
+This License applies only to the following precompiled binary components in
+the accompanying DeepStack research artifact:
+
+  src/deepstack/mosaic/arch/_reference_model*.so
+  src/deepstack/mosaic/cost/_capacity*.so
+  src/deepstack/mosaic/noc/_model_support*.so
+  src/tilesight/tilesight/distributed/noc/_model_support*.so
+
+It does not apply to the open-source portions of the artifact.
+
+In this License, "Complete Artifact" means the complete, unmodified repository
+file set published by the Licensor in an official versioned release or
+archival deposition, including all Covered Binaries, open-source files,
+license texts, adjacent `.license` files, notices, and checksum manifests.
+Changing only the outer archive format does not modify the Complete Artifact.
+A container image may add operating-system or dependency layers, but it must
+contain an intact Complete Artifact file set.
+
+2. Limited License Grant
+
+Subject to this License, the Licensor grants each recipient a worldwide,
+royalty-free, non-exclusive, perpetual license to:
+
+  (a) download, install, and execute the Covered Binaries;
+  (b) benchmark the Covered Binaries and validate their documented inputs and
+      outputs;
+  (c) use the Covered Binaries for academic artifact evaluation, peer review,
+      teaching, non-commercial academic research, and reproduction of
+      published research results, irrespective of the recipient's employer
+      affiliation; and
+  (d) reproduce and redistribute exact, unmodified copies of the Covered
+      Binaries solely as part of a Complete Artifact, including through public
+      archival repositories, archival mirrors, and container images that
+      contain an intact Complete Artifact.
+
+Every redistributed copy must retain this License, the adjacent `.license`
+files, and all copyright and attribution notices.
+
+The Licensor also permits verbatim reproduction of this License and the
+adjacent `.license` files solely to document the applicable terms and comply
+with the redistribution conditions above.
+
+The rights granted above may be terminated with respect to a recipient upon
+that recipient's material breach of this License.
+
+3. Proprietary Materials
+
+The Covered Binaries, their implementation, and all embedded or encoded
+datasets, characterization results, lookup tables, coefficients, parameters,
+models, and other non-public materials are proprietary to the Licensor.
+
+No separate rights in those materials are granted. This sentence does not
+limit the incidental right to copy and redistribute such materials only as
+embedded, unchanged parts of exact Covered Binary copies when exercising the
+rights in Section 2.
+
+4. Restrictions
+
+Except to the extent that a restriction is expressly prohibited by applicable
+law, the recipient shall not:
+
+  (a) reverse engineer, decompile, disassemble, translate, or otherwise
+      attempt to discover the source code or internal implementation of a
+      Covered Binary;
+  (b) extract, reconstruct, expose, reproduce, or perform inference for the
+      purpose of discovering embedded data, lookup tables, coefficients, model
+      parameters, characterization information, or other non-public material
+      from a Covered Binary;
+  (c) modify, patch, adapt, or create derivative works of a Covered Binary;
+  (d) circumvent technical protection or access-control mechanisms;
+  (e) remove or alter copyright, attribution, SPDX, or license notices;
+  (f) redistribute a Covered Binary except as expressly permitted by
+      Section 2(d);
+  (g) sell, sublicense, or separately commercialize a Covered Binary; or
+  (h) use a Covered Binary for commercial product development, commercial
+      design-space exploration, paid design or validation services, or
+      production deployment.
+
+For clarity, Section 4(h) does not prohibit artifact evaluation, peer review,
+or reproduction of published research results by a recipient merely because
+that recipient is employed by a commercial organization.
+
+Sections 4(a) and 4(b) do not prohibit observing, recording, comparing, or
+publishing documented API outputs, aggregate benchmark results, or research
+reproduction results produced through uses permitted by Section 2, provided
+that those activities are not undertaken, individually or in combination, to
+discover, expose, extract, or reconstruct any non-public material described in
+Section 4(b).
+
+5. Third-Party Software
+
+Third-party components, if any, remain governed by their respective licenses.
+Nothing in this License restricts rights granted under an applicable
+third-party or open-source license.
+
+6. No Warranty
+
+THE COVERED BINARIES ARE PROVIDED "AS IS", WITHOUT WARRANTIES OR CONDITIONS
+OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF
+TITLE, NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR
+PURPOSE.
+
+7. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES ARISING FROM OR RELATING TO THE COVERED BINARIES OR THIS LICENSE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+8. Additional Licensing
+
+Additional or commercial rights require a separate written license from the
+applicable rightsholder.

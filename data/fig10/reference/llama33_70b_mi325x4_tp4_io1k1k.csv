@@ -1,0 +1,11 @@
+model,scenario,tp,BS,system_decode_tps,system_prefill_tps,total_wall_s,system_decode_duration_s,peak_kv_cache_pct,log_file
+Llama-3.3-70B-Instruct,io1024_1024,4,1,86.67,9047.92,11.9141,11.8153,0.1,llama33_70b_io1024_1024_bs1.log
+Llama-3.3-70B-Instruct,io1024_1024,4,2,166.04,8642.68,12.5378,12.3347,0.1,llama33_70b_io1024_1024_bs2.log
+Llama-3.3-70B-Instruct,io1024_1024,4,4,310.08,9831.17,13.5665,13.2094,0.2,llama33_70b_io1024_1024_bs4.log
+Llama-3.3-70B-Instruct,io1024_1024,4,8,520.77,10541.06,16.3887,15.7305,0.4,llama33_70b_io1024_1024_bs8.log
+Llama-3.3-70B-Instruct,io1024_1024,4,16,1016.62,10675.29,17.414,16.1161,0.8,llama33_70b_io1024_1024_bs16.log
+Llama-3.3-70B-Instruct,io1024_1024,4,32,1865.93,11115.98,20.0477,17.5612,2.2,llama33_70b_io1024_1024_bs32.log
+Llama-3.3-70B-Instruct,io1024_1024,4,64,2999.02,10959.35,26.9034,21.8525,3.6,llama33_70b_io1024_1024_bs64.log
+Llama-3.3-70B-Instruct,io1024_1024,4,128,4496.85,11074.67,39.1499,29.1475,7.7,llama33_70b_io1024_1024_bs128.log
+Llama-3.3-70B-Instruct,io1024_1024,4,256,5890.55,10413.18,65.6515,44.5025,17.7,llama33_70b_io1024_1024_bs256.log
+Llama-3.3-70B-Instruct,io1024_1024,4,512,6830.54,10847.26,117.3715,76.7564,35.5,llama33_70b_io1024_1024_bs512.log

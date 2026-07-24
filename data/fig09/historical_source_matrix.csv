@@ -1,0 +1,7 @@
+model,target_csv,source_state_id,max_abs_delta_pct,result
+Llama3_70b,merged_8xb200_decode_llama_3_70b_0222.csv,final-recorded-0222,4.68123602576924,does_not_match release model; immutable paper baseline
+Llama3_70b,merged_8xb200_decode_llama_3_70b_0223.csv,release-legacy-count,3.10862446895044e-13,exact version-matched adjacent record
+DeepSeekV3,b200_8x1_8_decode_ref_0311.csv,historical-version-matched-0311,1.99840144432528e-13,exact historical-state audit
+DeepSeekV3,b200_8x1_8_decode_ref_0311.csv,release-legacy-count,2.45011029717426,does_not_match after subsequent MLA corrections
+DeepSeekV3,b200_8x1_8_decode_ref_0313.csv,release-legacy-count,4.55191440096314e-13,exact version-matched adjacent record
+all_40,dual_path_expected.csv,release-dual-path-2026-07,0,1-worker and 32-worker non-runtime columns exactly identical

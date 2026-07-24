@@ -1,0 +1,21 @@
+BS,Eager_Mode,System Prefill TPS,User Prefill Speed,System Decode TPS,User Decode Speed,Filename
+1,False,7468.9,7468.9,42.65,42.65,bs1_eager_disable.log
+1,True,7267.85,7267.85,30.92,30.92,bs1_eager_enable.log
+2,False,6118.56,6124.43,84.93,42.39,bs2_eager_disable.log
+2,True,6734.77,6804.91,56.92,28.43,bs2_eager_enable.log
+4,False,8185.98,3984.29,168.7,42.06,bs4_eager_disable.log
+4,True,8071.28,3939.05,117.82,29.4,bs4_eager_enable.log
+8,False,9068.39,2110.89,288.0,35.91,bs8_eager_disable.log
+8,True,9030.14,2104.19,234.64,29.27,bs8_eager_enable.log
+16,False,9517.28,1067.06,561.14,34.98,bs16_eager_disable.log
+16,True,9550.19,1072.91,468.89,29.24,bs16_eager_enable.log
+32,False,9550.77,643.46,1115.01,34.05,bs32_eager_disable.log
+32,True,9469.14,643.01,837.62,25.72,bs32_eager_enable.log
+64,False,9734.8,408.07,2284.76,33.48,bs64_eager_disable.log
+64,True,9670.97,408.35,1625.57,24.25,bs64_eager_enable.log
+128,False,9771.2,251.63,4135.05,28.36,bs128_eager_disable.log
+128,True,9680.03,246.72,3228.55,22.73,bs128_eager_enable.log
+256,False,9742.17,154.19,6080.04,19.49,bs256_eager_disable.log
+256,True,9662.07,151.7,5282.58,17.33,bs256_eager_enable.log
+512,False,9637.62,89.41,7349.03,11.26,bs512_eager_disable.log
+512,True,9583.86,89.59,7084.91,10.94,bs512_eager_enable.log
