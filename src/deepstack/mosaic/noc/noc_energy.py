@@ -184,12 +184,10 @@ def build_extended_energy_matrix_switch_only(
     h: Hierarchy,
     energy_config: NocEnergyConfig | None = None,
 ) -> np.ndarray:
-    """
-    纯 SWITCH 多层拓扑的扩展能耗矩阵（pJ/bit）。
-
-    与 build_extended_bandwidth_matrix_switch_only 结构完全一致，
-    仅将 topo.link_bandwidth 替换为对应层级的 pJ/bit 常数
-    （通过 caller config 或 bundled release provider 获取）。
+    """Build an extended energy matrix in pJ/bit for an all-switch hierarchy.
+    Use the same structure as build_extended_bandwidth_matrix_switch_only, replacing
+    link bandwidths with per-layer energy values from caller configuration or the
+    bundled provider.
     """
     cfg = energy_config or h.energy_config
 

@@ -1,6 +1,6 @@
 # Qwen3-Omni-30B-A3B-Instruct
-# 参数来源: ref/Qwen3-Omni-30B-A3B-Instruct.json
-# 结构参考: transformers_modeling/modeling_qwen3_omni_moe.py (transformers v4.57.0)
+# Parameter source: ref/Qwen3-Omni-30B-A3B-Instruct.json
+# Architecture reference: transformers_modeling/modeling_qwen3_omni_moe.py (transformers v4.57.0)
 
 import torch
 
@@ -18,7 +18,7 @@ def _bf16(loc1="ddr", loc2="ddr", loc3="ddr"):
 
 
 def _make_thinker() -> LLM_Arch:
-    # thinker_config.text_config: 与独立版 Qwen3-30B-A3B 同构
+    # thinker_config.text_config: same architecture as standalone Qwen3-30B-A3B
     gqa_arch = GQA_Arch(
         num_head=32,
         num_kv_head=4,
@@ -64,7 +64,7 @@ def _make_talker() -> LLM_Arch:
         atten_bytes=_bf16(),
     )
     # shared_expert_intermediate_size=768 = 2 x moe_intermediate_size(384);
-    # moe_top 假设 shared 与 routed expert 同尺寸, 故按 2 个 shared expert 等效建模 (FLOPs/权重一致)
+    # moe_top assumes shared and routed experts have the same size, so model this as 2 equivalent shared experts (same FLOPs/weights)
     moe_arch = MoE_Arch(
         num_shared_experts=2,
         num_routed_experts=128,
@@ -96,8 +96,8 @@ def _make_talker() -> LLM_Arch:
 
 
 def _make_code_predictor() -> LLM_Arch:
-    # talker_config.code_predictor_config: 5 层 dense causal LM,
-    # 每帧 AR 生成剩余 15 个 codebook (MTP 式微型 decode)
+    # talker_config.code_predictor_config: 5-layer dense causal LM,
+    # autoregressively generates the remaining 15 codebooks per frame (MTP-style miniature decode)
     gqa_arch = GQA_Arch(
         num_head=16,
         num_kv_head=8,
@@ -105,7 +105,7 @@ def _make_code_predictor() -> LLM_Arch:
         atten_bytes=_bf16(),
     )
     dense_ffn_arch = Dense_FFN_Arch(
-        up_hidden=3072,          # 门控 SwiGLU (Qwen3OmniMoeMLP)
+        up_hidden=3072,          # Gated SwiGLU (Qwen3OmniMoeMLP)
         swiglu_bytes=_bf16(loc3="smem"),
     )
     rms_norm_bytes = OpBytes(
@@ -134,7 +134,7 @@ class Qwen3_Omni_30b_a3b(Omni_Arch):
             depth=27,
             hidden_size=1152,
             num_head=16,
-            ffn_hidden=4304,          # 非门控 gelu MLP
+            ffn_hidden=4304,          # Non-gated gelu MLP
             patch_size=16,
             temporal_patch_size=2,
             spatial_merge_size=2,
@@ -149,7 +149,7 @@ class Qwen3_Omni_30b_a3b(Omni_Arch):
             num_layers=32,
             d_model=1280,
             num_head=20,
-            ffn_hidden=5120,          # 非门控 gelu MLP
+            ffn_hidden=5120,          # Non-gated gelu MLP
             num_mel_bins=128,
             downsample_hidden=480,
             n_window=50,
@@ -163,7 +163,7 @@ class Qwen3_Omni_30b_a3b(Omni_Arch):
         code2wav = Code2Wav_Arch(
             num_layers=8,
             hidden_size=1024,
-            ffn_hidden=3072,          # 门控 SwiGLU
+            ffn_hidden=3072,          # Gated SwiGLU
             num_head=16,
             num_kv_head=16,
             sliding_window=72,

@@ -17,7 +17,7 @@
 #     return math.sqrt(T * var_per_token)
 
 # def deepseek_sigma_ep8_aligned(T):
-#     return math.sqrt(T)  # EP=8 对齐特例：单 token 方差=1
+#     return math.sqrt(T)  # Special case aligned with EP=8: variance per token = 1
 
 # def estimate_moe_routing_max(M, n, EP, T, R, method="qwen"):
 #     mu = T * n / EP
@@ -69,38 +69,37 @@ import math
 import pprint
 
 def a_m_refined(m: float) -> float:
-    """
-    计算 m 个标准正态分布变量期望最大值的 refined 近似值。
-    添加了 m <= 1 的边界检查来防止 math domain error。
+    """Compute a refined approximation to the expected maximum of m standard normal variables.
+    Includes a boundary check for m <= 1 to prevent a math domain error.
     """
     # m_eff = (EP - 1) * R
-    # 如果 m <= 1 (例如 EP=2, R=1 导致 m=1)，
-    # 此时 log(m) <= 0，会导致 log(L) 失败。
-    # 对于 m=1，最大值的期望就是其均值，对于标准正态分布即为 0。
+    # If m <= 1 (e.g., EP=2, R=1 gives m=1),
+    # then log(m) <= 0, causing log(L) to fail.
+    # For m=1, the expected maximum equals its mean, which is 0 for a standard normal distribution.
     if m <= 1.0:
         return 0.0
 
     L = math.log(m)
-    # 既然 m > 1, 那么 L > 0, math.log(L) 和 sqrt(L) 都是安全的。
+    # Since m > 1, L > 0, so math.log(L) and sqrt(L) are both safe.
     
     sqrt_2L = math.sqrt(2 * L)
     
-    # 分母 (2 * sqrt_2L) 也不可能为 0
+    # The denominator (2 * sqrt_2L) cannot be 0 either
     return sqrt_2L - (math.log(L) + math.log(4 * math.pi)) / (2 * sqrt_2L)
 
 def qwen_sigma(M, n, EP, T):
-    """计算 Qwen-MoE (超几何分布) 的 sigma"""
-    # 鲁棒性：EP 必须 >= 1。如果 EP <= 0，p 会无效或导致除零。
-    # 主函数中已检查 EP=1，这里假设 EP >= 2。
+    """Compute sigma for Qwen-MoE using the hypergeometric distribution."""
+    # Robustness: EP must be >= 1. If EP <= 0, p is invalid or division by zero occurs.
+    # EP=1 is handled in the main function; assume EP >= 2 here.
     if EP < 2:
         return 0.0
         
     p = 1 / EP
     
-    # 鲁棒性：处理 (M-1) 除零的情况
-    # (M-n)/(M-1) 是有限群体校正因子
-    # 如果 M=1, 那么 n 必须=1，方差为 0
-    # 如果 M=n, 方差也为 0 (抽了所有)
+    # Robustness: handle division by zero from (M-1)
+    # (M-n)/(M-1) is the finite population correction factor
+    # If M=1, n must be 1, and the variance is 0
+    # If M=n, the variance is also 0 (the entire population is sampled)
     if M <= 1 or M == n:
         var_per_token = 0.0
     else:
@@ -110,12 +109,12 @@ def qwen_sigma(M, n, EP, T):
     return math.sqrt(T * var_per_token)
 
 def deepseek_sigma_ep8_aligned(T):
-    # EP=8 对齐特例：单 token 方差=1
-    # 鲁棒性：确保 T 不是负数
+    # Special case aligned with EP=8: variance per token = 1
+    # Robustness: ensure T is nonnegative
     return math.sqrt(max(0.0, T))
 
 def estimate_moe_routing_max(M, n, EP, T, R, method="qwen"):
-    # 鲁棒性：处理 EP <= 0 的无效输入
+    # Robustness: handle invalid input EP <= 0
     if EP <= 0:
         print("Warning: EP must be >= 1. Returning 0.")
         return 0.0
@@ -140,18 +139,18 @@ def estimate_moe_routing_max(M, n, EP, T, R, method="qwen"):
     return mu + sigma * am
 
 def estimate_moe_routing_imbalance_overhead(M, n, EP, T, R, method="qwen"):
-    # 鲁棒性：处理 EP <= 0 的无效输入
+    # Robustness: handle invalid input EP <= 0
     if EP <= 0:
         print("Warning: EP must be >= 1. Returning 1.0 (no overhead).")
         return 1.0
 
     if EP == 1:
-        return 1.0  # 单专家没有不平衡开销
+        return 1.0  # A single expert incurs no imbalance overhead
         
     mu = T * n / EP
     
-    # 鲁棒性：防止除以零
-    # 如果 T=0 或 n=0, 那么 mu=0。此时开销无意义，返回 1.0
+    # Robustness: prevent division by zero
+    # If T=0 or n=0, mu=0. Overhead is undefined in this case; return 1.0
     if mu == 0.0:
         return 1.0
         
@@ -167,12 +166,12 @@ def estimate_moe_routing_imbalance_overhead(M, n, EP, T, R, method="qwen"):
     m_eff = (EP - 1) * R
     am = a_m_refined(m_eff)
     
-    # mu 已经在上面检查过不为 0
+    # mu was already checked above to be nonzero
     return 1.0 + sigma * am / mu
 
 
 if __name__ == "__main__":
-    # 原始参数 (不会出错)
+    # Original parameters (no error)
     M = 256
     n = 8
     EP = 8
@@ -190,7 +189,7 @@ if __name__ == "__main__":
     print("--- 原始参数测试 ---")
     pprint.pprint(out)
 
-    # 导致错误的参数 (EP=2, R=1)
+    # Parameters that cause the error (EP=2, R=1)
     M_err = 256
     n_err = 8
     EP_err = 2
@@ -208,7 +207,7 @@ if __name__ == "__main__":
     print("\n--- 边界条件测试 (EP=2, R=1) ---")
     pprint.pprint(out_err)
     
-    # 另一个边界条件 (n=0 导致 mu=0)
+    # Another edge case (n=0 gives mu=0)
     out_zero_mu = {
         "inputs": {"M":M, "n":0, "EP":EP, "R":R, "T":T},
         "Qwen_MoE_Overhead_n0": estimate_moe_routing_imbalance_overhead(M, 0, EP, T, R, method="qwen"),

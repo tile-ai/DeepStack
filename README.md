@@ -1,7 +1,13 @@
 # DeepStack artifact evaluation
 
-This repository is the artifact for **“DeepStack: Facilitating Co-Design
-Exploration of 3D DRAM-Stacked Accelerators for Distributed LLM Inference.”**
+<p align="center">
+  <img src="docs/badges/acm-artifacts-available-v1.1.jpg" height="110" alt="ACM Artifacts Available">
+  <img src="docs/badges/acm-artifacts-evaluated-functional-v1.1.jpg" height="110" alt="ACM Artifacts Evaluated — Functional">
+  <img src="docs/badges/acm-results-reproduced-v1.1.jpg" height="110" alt="ACM Results Reproduced">
+</p>
+
+This repository is the artifact for the paper
+[**DeepStack: Facilitating Co-Design Exploration of 3D DRAM-Stacked Accelerators for Distributed LLM Inference**](https://arxiv.org/abs/2604.04750).
 It provides a CPU-only workflow for rerunning the supported analytical
 experiments, checking their outputs, and rendering the paper-facing figures.
 After environment setup, reproduction does not require a GPU, model weights,
@@ -57,6 +63,36 @@ The full run is intended for a host with about 32 CPU cores, 64 GiB RAM, and
 access the network to install dependencies, while the model runs are
 repository-local.
 
+## Custom configurations
+
+After setup, use [examples/custom_nvidia.py](examples/custom_nvidia.py) to
+model Llama3-70B decode on eight H100 GPUs without running a GPU workload.
+The example fixes KV length at 2048 and defaults to global batch size 64:
+
+```bash
+# Baseline: TP8, DP1.
+conda run -n deepstack-ae python examples/custom_nvidia.py
+# Change per-GPU HBM bandwidth, in decimal GB/s.
+conda run -n deepstack-ae python examples/custom_nvidia.py --hbm-bandwidth-gbyteps 2680
+# Change NoC link bandwidth (GB/s) and hop latency (ns).
+conda run -n deepstack-ae python examples/custom_nvidia.py --noc-bandwidth-gbyteps 225 --noc-latency-ns 2000
+# Compare TP4/DP2 on the same eight GPUs.
+conda run -n deepstack-ae python examples/custom_nvidia.py --tp 4 --dp 2
+```
+
+Each run prints latency and system throughput. Keep `TP × DP = 8`; use
+`--batch-size` to change the global batch size. The script shows the three
+customization points: `chip.ddr_bandwidth`, `make_custom_profile`, and
+`ParallelScheme`. Its switch fabric is illustrative, not an exact NVLink
+calibration. These runs are exploratory and do not replace AE references.
+
+For custom 3D DRAM designs, `DramInterfaceConfig` and `StackedGpuConfig` in
+[mosaic.arch.custom_profile](src/deepstack/mosaic/arch/custom_profile.py)
+expose layer counts, connectivity and per-layer capacity. A complete example
+configuration is in [tests/test_custom_arch_profile.py](tests/test_custom_arch_profile.py).
+These parameters describe a custom architecture, rather than changing the
+physical memory stacks of an H100.
+
 ## Results
 
 The quick run writes to `results/quick/`. The full workflow writes generated
@@ -110,7 +146,7 @@ guide. The archived artifact is identified by
 citation metadata are in [CITATION.cff](CITATION.cff).
 
 > **Mixed-license artifact.** Source code, scripts, documentation, manifests,
-> and project data are licensed under Apache-2.0. Four bundled precompiled
+> and project data are licensed under Apache-2.0. Three bundled precompiled
 > model-support/capacity libraries are proprietary and licensed separately
 > under
 > [LicenseRef-DeepStack-AE-Binary-1.0](LICENSES/LicenseRef-DeepStack-AE-Binary-1.0.txt).

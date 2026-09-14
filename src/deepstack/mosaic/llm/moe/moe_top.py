@@ -58,12 +58,8 @@ def moe_top(bs:int, seq:int, hidden:int, moe_down_hidden:int, parallel:ParallelS
         pass
 
 def get_moe_footprint(bs: int, seq: int, hidden: int, moe_down_hidden: int, parallel: ParallelScheme, expert_bytes: OpBytes, gate_bytes: OpBytes, num_shared_experts: int, num_routed_experts: int):
-    """
-    估算 moe 在单设备上的内存足迹。
-
-    返回一个二元组:
-    - max_activation: 峰值激活内存 (bytes)
-    - mem_weight: 权重内存 (bytes)
+    """Estimate per-device MoE memory usage.
+    Return (max_activation, mem_weight), both in bytes.
     """
 
     # we assume each device hold the complete shared experts, gating & routing matrix
@@ -130,7 +126,7 @@ def get_moe_footprint(bs: int, seq: int, hidden: int, moe_down_hidden: int, para
     routed_experts_weight = num_shard_routed_experts * (expert_weight1 + expert_weight2 + expert_weight3)
     gate_weight = hidden * num_routed_experts * gate_weight_bytes
 
-    # 权重内存；FSDP 时按数据并行维度均分
+    # Weight memory; with FSDP, split evenly across the data-parallel dimension
     dp_divisor = np.uint64(parallel.dp) if parallel.fsdp else np.uint64(1)
     mem_weight = (shared_experts_weight + routed_experts_weight) // dp_divisor + gate_weight
 
@@ -142,7 +138,7 @@ def get_moe_footprint(bs: int, seq: int, hidden: int, moe_down_hidden: int, para
 
     all_reduce_bytes = shard_bs * shard_seq * hidden * out_bytes * 2
 
-    # 峰值激活估计（覆盖四个关键阶段）
+    # Peak activation estimate (covering four key stages)
     max_activation = max(
         input_act_bytes + shared_experts_act_bytes + routed_experts_act_bytes + gate_act_bytes,
         shared_experts_act_bytes + routed_experts_act_bytes + gate_act_bytes + all_reduce_bytes

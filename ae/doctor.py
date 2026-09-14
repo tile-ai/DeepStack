@@ -8,7 +8,6 @@ from .paths import ROOT
 
 
 NOC_PROFILE_MODULE = "mosaic.noc._model_support"
-TILESIGHT_NOC_PROFILE_MODULE = "tilesight.distributed.noc._model_support"
 NOC_PROFILE_API_VERSION = 1
 ENERGY_PROFILE_API_VERSION = 1
 ARCH_PROFILE_MODULE = "mosaic.arch._reference_model"
@@ -184,17 +183,6 @@ def check_noc_profile_provider(failures: list[str]) -> Path | None:
                 f"{NOC_PROFILE_MODULE}: missing required energy interface {name}"
             )
     return path
-
-
-def check_tilesight_noc_profile_provider(failures: list[str]) -> Path | None:
-    """Validate the TileSight provider without exposing its profile data."""
-
-    return _check_binary_profile_provider(
-        TILESIGHT_NOC_PROFILE_MODULE,
-        ROOT / "src" / "tilesight" / "tilesight" / "distributed" / "noc",
-        failures,
-        require_version=False,
-    )
 
 
 def check_arch_reference_provider(failures: list[str]) -> Path | None:

@@ -78,7 +78,7 @@ def implicit_gemm_l2_hitrate_reuse_distance(M, N, K, tb_m, tb_n, tb_k, L2_Cap, S
     return hit_rate
 
 
-# # 使用实际参数调用函数
+# # Call the function with actual parameters
 # M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count, BYTE_per_num, CONV_C, CONV_KH, CONV_KW=100352,128,1152,128,64,32,31457280,108,2,128,3,3
 # hit_rate = implicit_gemm_l2_hitrate_reuse_distance(M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count, BYTE_per_num, CONV_C, CONV_KH, CONV_KW)
 # print(f"Hit Rate: {hit_rate}")

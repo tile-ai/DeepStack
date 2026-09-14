@@ -355,8 +355,8 @@ def swiglu_coarse_group_gemm_stage3(expert_row:np.ndarray, counts:np.ndarray, lo
 
 def swiglu_coarse_group_gemm(expert_row:np.ndarray, counts:np.ndarray, hidden:int, up_hidden:int, parallel:ParallelScheme, next_parallel:ParallelScheme, swiglu_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, stats:"OpPerfStats | None" = None):
     
-    # expert_row 表示, 每个ep组(total_experts/EP个), 每个expert激活次数
-    # counts则是bin count,第index个数的值num_expert表示, 有index个token的expert总共有num_expert个
+    # expert_row gives each expert's activation count within each ep group (total_experts/EP experts per group)
+    # counts is a bin count: the value num_expert at index indicates that num_expert experts each received index tokens
     # e.g.,
     # expert_row: [23 18 16 15 15 13 20 19 16 15 16 30 12 16 21 24 19 16 19 20 17 12 15 16 13 15 16  7 14 18 20 20]
     # counts: [0 0 0 0 0 0 0 1 0 0 0 0 2 2 1 5 7 1 2 3 4 1 0 1 1 0 0 0 0 0 1]

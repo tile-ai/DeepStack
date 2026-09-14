@@ -85,15 +85,15 @@ def get_tiling_configs_medium():
 def mla_fa_prefill_wrapper(bs:int, seq:int, hidden:int, num_head:int, num_kv_head:int, head_dim:int, qk_rope_head_dim:int, parallel:ParallelScheme, atten_parallel:ParallelScheme,
     atten_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, stats: "OpPerfStats | None" = None, seq_kv: "int | None" = None):
 
-    # seq_kv: 每个 query 实际 attend 的 kv 长度。默认 None 表示 dense (kv 长度 = seq)。
-    # DSA (sparse attention) 场景下传 min(index_topk, seq), 即每个 query 只 attend 被 indexer 选中的 topk 个 token。
+    # seq_kv: kv length actually attended to by each query. The default None means dense attention (kv length = seq).
+    # For DSA (sparse attention), pass min(index_topk, seq), so each query attends only to the topk tokens selected by the indexer.
     if seq_kv is None:
         seq_kv = seq
 
     mode=granularity.get_mode()
     tune_flag=granularity.get_auto_tune()
 
-    # 在 GQA 里, g = K/V head 数，而 group size = Q head 数 ÷ K/V head 数。
+    # In GQA, g = number of K/V heads, while group size = number of Q heads / number of K/V heads.
     group_size = math.ceil (num_head/num_kv_head)
 
     wq_hidden = num_head * head_dim

@@ -82,7 +82,7 @@ def get_default_tiling(input1_shape:tuple, element_op_bytes:OpBytes, single_chip
         # log.warning("set transaction_size to : %s", transaction_size)
         log.info("set transaction_size to : %s", transaction_size)
 
-    # 倒序访问 input_shape 的每个值
+    # Iterate over input_shape values in reverse order
     for i in range(shape_len - 1, -1, -1):
         
         if current_stride >= transaction_size:
@@ -95,7 +95,7 @@ def get_default_tiling(input1_shape:tuple, element_op_bytes:OpBytes, single_chip
     
     # now we get tb_shape
     # now we are going to assign this to threads
-    # 正序访问 tb_shape 的每个值
+    # Iterate over tb_shape values in forward order
     cascade_dim=1
     for i in range(shape_len):
 
@@ -135,7 +135,7 @@ def get_transformed_tiling(input1_shape:tuple, element_op_bytes:OpBytes, single_
     #     transaction_size = find_max_power_of_two(max_const=transaction_size, N=np.prod(input1_shape))
     #     log.warning("set transaction_size to : %s", transaction_size)
 
-    # 倒序访问 input_shape 的每个值
+    # Iterate over input_shape values in reverse order
     for i in range(shape_len - 1, -1, -1):
         
         if current_stride >= transaction_size:
@@ -148,7 +148,7 @@ def get_transformed_tiling(input1_shape:tuple, element_op_bytes:OpBytes, single_
     
     # now we get tb_shape
     # now we are going to assign this to threads
-    # 正序访问 tb_shape 的每个值
+    # Iterate over tb_shape values in forward order
     cascade_dim=1
     for i in range(shape_len):
 

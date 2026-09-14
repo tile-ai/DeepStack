@@ -35,12 +35,8 @@ def swiglu_top(bs:int, seq:int, hidden:int, up_hidden:int, parallel:ParallelSche
         pass
     
 def get_swiglu_footprint(bs: int, seq: int, hidden: int, up_hidden: int, parallel: ParallelScheme, swiglu_bytes: OpBytes):
-    """
-    估算 SWiGLU 在单设备上的内存足迹。
-
-    返回一个二元组:
-    - max_activation: 峰值激活内存 (bytes)
-    - mem_weight: 权重内存 (bytes)
+    """Estimate per-device SWiGLU memory usage.
+    Return (max_activation, mem_weight), both in bytes.
     """
 
     in_bytes, weight_bytes, out_bytes = swiglu_bytes.get_dtype_bytes()
@@ -65,7 +61,7 @@ def get_swiglu_footprint(bs: int, seq: int, hidden: int, up_hidden: int, paralle
     # W1: [shard_hidden, shard_up_hidden]
     # x@W1: [shard_bs, shard_seq, shard_up_hidden]
 
-    # 权重按张量并行的分片尺寸 (使用整型上取整)
+    # Weight shard sizes for tensor parallelism (using integer ceiling division)
     bs_u = np.uint64(bs)
     seq_u = np.uint64(seq)
     hidden_u = np.uint64(hidden)
@@ -75,20 +71,20 @@ def get_swiglu_footprint(bs: int, seq: int, hidden: int, up_hidden: int, paralle
     sp_u = np.uint64(parallel.sp)
 
     shard_hidden = (hidden_u + tp_u - np.uint64(1)) // tp_u
-    # up_hidden 可能为浮点（如 8192*2.5），先按 tp 做浮点除法再 ceil，再转为 uint64
+    # up_hidden may be a float (e.g., 8192*2.5); first divide by tp in floating point, then ceil and convert to uint64
     # shard_up_hidden = np.uint64(math.ceil(float(up_hidden) / float(parallel.tp)))
     shard_up_hidden = (up_hidden_u + tp_u - np.uint64(1)) // tp_u
     shard_bs = (bs_u + dp_u - np.uint64(1)) // dp_u
     shard_seq = (seq_u + sp_u - np.uint64(1)) // sp_u
 
-    # 公共系数与中间量
+    # Common coefficients and intermediate values
     tokens_per_shard = shard_bs * shard_seq
     up_act_bytes = tokens_per_shard * shard_up_hidden * in_bytes_u
     hidden_act_bytes = tokens_per_shard * shard_hidden * in_bytes_u
     input_act_bytes = tokens_per_shard * hidden_u * in_bytes_u
     all_reduce_bytes = tokens_per_shard * hidden_u * out_bytes_u * np.uint64(2)
 
-    # 峰值激活估计（覆盖四个关键阶段）
+    # Peak activation estimate (covering four key stages)
     max_activation = max(
         input_act_bytes + np.uint64(2) * up_act_bytes,
         np.uint64(3) * up_act_bytes,
@@ -96,7 +92,7 @@ def get_swiglu_footprint(bs: int, seq: int, hidden: int, up_hidden: int, paralle
         hidden_act_bytes + all_reduce_bytes
     )
 
-    # 权重内存；FSDP 时按数据并行维度均分
+    # Weight memory; with FSDP, split evenly across the data-parallel dimension
     dp_divisor = np.uint64(parallel.dp) if parallel.fsdp else np.uint64(1)
     w1_total = hidden_u * shard_up_hidden * weight_bytes_u
     w2_total = hidden_u * shard_up_hidden * weight_bytes_u

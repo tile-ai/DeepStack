@@ -10,7 +10,7 @@ class Modeling_Granularity:
     mode: Mode
     comp_comm_overlap: bool
     auto_tune: bool
-    dump_perf_log: bool = False   # 是否在 finalize 后自动 dump_log；默认关闭
+    dump_perf_log: bool = False   # Whether to automatically call dump_log after finalize; disabled by default
 
     def __post_init__(self) -> None:
         if self.mode not in ("coarse", "fine", "roof"):

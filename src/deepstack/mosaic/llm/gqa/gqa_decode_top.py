@@ -15,8 +15,8 @@ log = logging.getLogger(__name__)
 
 def get_gqa_decode_footprint(bs:int, seq:int, cached_kv:int, hidden:int, num_head:int, num_kv_head:int, head_dim:int, parallel:ParallelScheme, atten_parallel:ParallelScheme, next_parallel:ParallelScheme, atten_bytes:OpBytes):
     
-    # 其中x [bs/dp, seq/sp, hidden], Wq, [hidden, hidden/tp], Wk, Wv [hidden, hidden/g/tp], Wo [hidden/tp, hidden]
-    # Attention 中Q.sp * KV.cp == Global.sp 
+    # Here x [bs/dp, seq/sp, hidden], Wq [hidden, hidden/tp], Wk, Wv [hidden, hidden/g/tp], Wo [hidden/tp, hidden]
+    # In attention, Q.sp * KV.cp == Global.sp
         
     group_size = math.ceil (num_head/num_kv_head)
     wq_hidden = num_head * head_dim

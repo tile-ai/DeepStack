@@ -13,12 +13,11 @@ This file is a scope map. The controlling license texts are linked below.
 | Reference architecture/DSE-policy provider | `src/deepstack/mosaic/arch/_reference_model*.so` | [LicenseRef-DeepStack-AE-Binary-1.0](LICENSES/LicenseRef-DeepStack-AE-Binary-1.0.txt) |
 | Reference SM-capacity provider | `src/deepstack/mosaic/cost/_capacity*.so` | [LicenseRef-DeepStack-AE-Binary-1.0](LICENSES/LicenseRef-DeepStack-AE-Binary-1.0.txt) |
 | DeepStack NoC-profile and chip/NoC-energy provider | `src/deepstack/mosaic/noc/_model_support*.so` | [LicenseRef-DeepStack-AE-Binary-1.0](LICENSES/LicenseRef-DeepStack-AE-Binary-1.0.txt) |
-| TileSight NoC-topology/profile provider | `src/tilesight/tilesight/distributed/noc/_model_support*.so` | [LicenseRef-DeepStack-AE-Binary-1.0](LICENSES/LicenseRef-DeepStack-AE-Binary-1.0.txt) |
 | Upstream model-description files | Paths listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Their retained Apache-2.0 headers |
 | Environment dependencies | Installed by Conda/pip and not redistributed in this repository | Their respective licenses |
 
 The Apache-2.0 metadata in `pyproject.toml` applies only to the source-only
-`ae*` Python package selected there. The four proprietary shared objects are
+`ae*` Python package selected there. The three proprietary shared objects are
 not part of that wheel or source distribution.
 
 The proprietary binary license permits public archival hosting, download,
@@ -32,16 +31,14 @@ rights under applicable law.
 
 ## Binary packaging and ABI
 
-The four binary globs in the table have distinct roles:
+The three binary globs in the table have distinct roles:
 
 - `arch/_reference_model*.so` supplies the paper-reference architecture and
   DSE policy;
 - `cost/_capacity*.so` supplies only the feasible reference SM count for a
   configured design point; it does not expose area estimates or breakdowns;
 - DeepStack `noc/_model_support*.so` supplies reference NoC profiles plus
-  chip/NoC energy calibration; and
-- TileSight `distributed/noc/_model_support*.so` supplies NoC topology and
-  profile support.
+  chip/NoC energy calibration.
 
 They target CPython 3.11 on 64-bit x86 Linux and load locally without Cython,
 a compiler, online activation, expiration, machine binding, or an access
@@ -61,13 +58,12 @@ bundled reference calibration.
 
 An exact official release or archival deposition may be mirrored under the
 binary-license conditions above. A modified fork is not a Complete Artifact
-under that license. When publishing a modified source fork, remove the four
+under that license. When publishing a modified source fork, remove the three
 proprietary `.so` files and their adjacent `.so.license` files unless separate
 permission has been obtained; the Apache-2.0 source subset may be modified and
 redistributed under its own terms.
 
 For long-term public release, describe the complete deposition as
 mixed/custom licensed rather than assigning Apache-2.0 to the deposition as a
-whole. The root `LICENSE`, this map, both controlling license texts, all four
-binary sidecars, notices, and `SHA256SUMS` should remain together in the
+whole. The root `LICENSE`, this map, both controlling license texts, all binary sidecars, notices, and `SHA256SUMS` should remain together in the
 archived artifact.

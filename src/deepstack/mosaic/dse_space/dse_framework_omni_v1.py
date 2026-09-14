@@ -1,8 +1,8 @@
-# Qwen3-Omni 全组件 DSE 入口 (v1, Phase 1 同集群串行模式)。
+# DSE entry point for all Qwen3-Omni components (v1, Phase 1 serial execution on the same cluster).
 #
-# 对每个组件枚举并行方案 (tp/ep/dp 因子分解, world_size 固定), 逐 plan 调
-# modeling_omni_e2e, 输出 CSV (按 first_audio_latency 排序)。
-# 用法: python -m mosaic.dse_space.dse_framework_omni_v1 [num_workers]
+# Enumerate parallel schemes for each component (tp/ep/dp factorizations with fixed world_size), call
+# modeling_omni_e2e for each plan, and output CSV sorted by first_audio_latency.
+# Usage: python -m mosaic.dse_space.dse_framework_omni_v1 [num_workers]
 import csv
 import itertools
 import logging
@@ -34,7 +34,9 @@ def make_noc_hierarchy() -> Hierarchy:
 
 
 def dense_scheme_candidates(world: int):
-    """dense 组件 (encoder / attention / c2w): tp x dp = world, sp=1 (decode 兼容)。"""
+    """Dense-component candidates for encoders, attention, and code2wav:
+    tp * dp = world, with sp=1 for decode compatibility.
+    """
     out = []
     for tp in [1, 2, 4, 8, 16]:
         if tp > world or world % tp:
@@ -45,7 +47,7 @@ def dense_scheme_candidates(world: int):
 
 
 def moe_scheme_candidates(world: int):
-    """MoE 组件: tp x ep = world。"""
+    """MoE-component candidates satisfying tp * ep = world."""
     out = []
     for ep in [1, 2, 4, 8, 16]:
         if ep > world or world % ep:
@@ -107,8 +109,8 @@ def dse_1(run_dir: str = "omni_dse_out", num_workers: int = 8, model_key: str = 
     enc = dense_scheme_candidates(WORLD_SIZE)
     c2w = dense_scheme_candidates(WORLD_SIZE)
 
-    # 组合裁剪: talker/cp/c2w 较小, encoder 与 c2w 用同一候选集; 全笛卡尔积会爆炸,
-    # 按 (thinker, thinker_moe) x (talker, talker_moe) x encoder x c2w 组合
+    # Prune combinations: talker/cp/c2w are small; encoder and c2w use the same candidate set. The full Cartesian product would explode,
+    # so combine (thinker, thinker_moe) x (talker, talker_moe) x encoder x c2w.
     tasks = [(model_key, a, b, c, d, e, f)
              for a, b, c, d, e, f in itertools.product(thinker_dense, thinker_moe, talker_dense, talker_moe, enc, c2w)]
     log.info("total %s plans", len(tasks))

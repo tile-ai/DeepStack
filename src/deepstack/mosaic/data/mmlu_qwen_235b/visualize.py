@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mosaic.utils.moe_router_sim import load_npz_routing_keep_shape
 
-# ===================== 统计函数 =====================
+# ===================== Statistics functions =====================
 
 def count_expert_frequency_prefill(prefill_numpy, total_experts):
     num_layers = prefill_numpy.shape[0]
@@ -27,7 +27,7 @@ def count_expert_frequency_decode(decode_numpy, total_experts):
             idx += 1
     return freq_matrix
 
-# ===================== 截断函数 =====================
+# ===================== Truncation functions =====================
 
 def truncate_decode(decode_numpy, new_num_iters):
     assert decode_numpy.ndim == 4, "decode_numpy 必须是 4 维的"
@@ -43,7 +43,7 @@ def truncate_prefill(prefill_numpy, new_num_tokens):
         raise ValueError(f"new_num_tokens 必须在 1 到 {original_tokens} 之间")
     return prefill_numpy[:, :new_num_tokens, :]
 
-# ===================== 分组聚合（EP 设备） =====================
+# ===================== Grouped aggregation (EP devices) =====================
 
 def build_group_index(total_experts: int, EP: int) -> np.ndarray:
     expert_ids = np.arange(total_experts)
@@ -60,7 +60,7 @@ def aggregate_freq_by_groups(freq_matrix: np.ndarray, group_ids: np.ndarray, EP:
             out[:, g] = freq_matrix[:, cols].sum(axis=1)
     return out
 
-# ===================== 可视化 =====================
+# ===================== Visualization =====================
 
 def _safe_title_to_filename(title: str) -> str:
     bad = [' ', '(', ')', ':', '/', '\\', '|', '=']
@@ -88,37 +88,37 @@ def plot_heatmap(data, title, xlabel="Expert ID", ylabel="Layer / Step Index", e
     plt.savefig(f"{_safe_title_to_filename(title)}.pdf", dpi=300)
     plt.show()
 
-# ===================== 主流程 =====================
+# ===================== Main workflow =====================
 
 if __name__ == "__main__":
-    # 1) 读取数据
+    # 1) Read data.
     npz_path = "./qwen3_moe_mmlu_batch0.npz"
     prefill_numpy, decode_numpy = load_npz_routing_keep_shape(npz_path, as_list=False)
     # prefill: [num_layers, num_tokens, k]
     # decode : [num_iters, num_layers, batch, k]
 
-    # ===== 可配置参数 =====
-    model_name = "Qwen3-235B-A22B"   # <- 这里传入你的模型名
-    total_experts = 128            # X 轴 expert 总数
-    EP = 8                         # 每次激活专家数（也代表 device 组数）
+    # ===== Configurable parameters =====
+    model_name = "Qwen3-235B-A22B"   # <- Supply the model name here.
+    total_experts = 128            # Total number of experts on the X axis.
+    EP = 8                         # Number of experts activated each time (also the number of device groups).
 
-    # ===== 可选：截断（按需启用） =====
+    # ===== Optional: truncation (enable as needed) =====
     decode_numpy = truncate_decode(decode_numpy, new_num_iters=1)
     # prefill_numpy = truncate_prefill(prefill_numpy, new_num_tokens=1000)
 
-    # 2) 基本形状信息
+    # 2) Basic shape information.
     num_layers_prefill, num_tokens, k_prefill = prefill_numpy.shape
     num_iters, num_layers_decode, batch, k_decode = decode_numpy.shape
 
-    # 3) 统计（expert 粒度）
+    # 3) Statistics (per expert).
     prefill_freq = count_expert_frequency_prefill(prefill_numpy, total_experts)   # [num_layers, total_experts]
     decode_freq  = count_expert_frequency_decode(decode_numpy, total_experts)     # [num_iters*num_layers, total_experts]
 
-    # 3.1 期望（expert 粒度）
+    # 3.1 Expected values (per expert).
     expected_prefill_expert = (num_tokens * k_prefill) / total_experts
     expected_decode_expert  = (batch * k_decode) / total_experts
 
-    # 3.2 画图（expert 粒度，标题加入 model 与 batch）
+    # 3.2 Plot (per expert; include model and batch in the title).
     plot_heatmap(
         prefill_freq,
         title=f"Prefill Expert Activation Frequencies | Model={model_name} | Batch={batch} | Total Experts={total_experts}",
@@ -135,16 +135,16 @@ if __name__ == "__main__":
         expected_value=expected_decode_expert
     )
 
-    # 4) 分组到 EP device
+    # 4) Group into EP devices.
     group_ids = build_group_index(total_experts, EP)
     prefill_freq_groups = aggregate_freq_by_groups(prefill_freq, group_ids, EP)   # [num_layers, EP]
     decode_freq_groups  = aggregate_freq_by_groups(decode_freq,  group_ids, EP)   # [num_iters*num_layers, EP]
 
-    # 4.1 期望（EP 分组）
+    # 4.1 Expected values (EP groups).
     expected_prefill_group = (num_tokens * k_prefill) / EP
     expected_decode_group  = (batch * k_decode) / EP
 
-    # 4.2 画图（EP 分组，标题加入 model 与 batch）
+    # 4.2 Plot (EP groups; include model and batch in the title).
     plot_heatmap(
         prefill_freq_groups,
         title=f"Prefill Activation per EP Device | Model={model_name} | Batch={batch} | EP={EP}",

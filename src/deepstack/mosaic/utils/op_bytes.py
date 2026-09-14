@@ -42,9 +42,8 @@ class OpBytes:
         return self.input1.num_bytes, input2_bytes, self.output.num_bytes
 
     def get_shapes(self) -> Tuple[Optional[Tuple[int, ...]], Optional[Tuple[int, ...]], Optional[Tuple[int, ...]]]:
-        """
-        返回 (input1.shape, input2.shape 或 None, output.shape)。
-        当 input2 不存在时，返回 None。
+        """Return (input1.shape, input2.shape or None, output.shape).
+        Use None when input2 is absent.
         """
         input2_shape = self.input2.shape if self.input2 is not None else None
         return self.input1.shape, input2_shape, self.output.shape
@@ -52,7 +51,7 @@ class OpBytes:
 
 
 if __name__ == "__main__":
-    # 简单示例测试
+    # Simple example test
     # op = OpBytes(
     #     input1=Tensor_Loc(torch.float16, 'ddr'),
     #     input2=Tensor_Loc(torch.float16, 'smem'),
@@ -66,7 +65,7 @@ if __name__ == "__main__":
     levels = op.to_mem_levels()
     print(levels)
 
-    # 期望输出：
+    # Expected output:
     # {'in1': [1, 1, 1, 2], 'in2': [0, 1, 1, 2], 'out1': [0, 0, 1, 4]}
     # assert levels['in1'] == [1, 1, 1, 2]
     # assert levels['in2'] == [0, 1, 1, 2]
@@ -76,7 +75,7 @@ if __name__ == "__main__":
     assert levels['out1'] == [0, 0, 1, 4]
     print("OpBytes mem_levels 测试通过")
 
-    # 单输入算子测试（input2=None）
+    # Single-input operator test (input2=None)
     op_single = OpBytes(
         input1=Tensor_Loc(torch.float16, 'ddr'),
         input2=None,
@@ -91,7 +90,7 @@ if __name__ == "__main__":
     assert bytes_single == (2, None, 4)
     print("OpBytes 单输入测试通过")
 
-    # 带 shape 的单输入算子测试
+    # Single-input operator test with shape
     # op_single_shape = OpBytes(
     #     input1=Tensor_Loc(torch.float16, 'ddr', shape=(32, 64)),
     #     input2=None,

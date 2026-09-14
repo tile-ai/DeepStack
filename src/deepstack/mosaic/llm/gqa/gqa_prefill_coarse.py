@@ -354,7 +354,7 @@ def gqa_prefill_coarse_stage4(bs:int, seq:int, hidden:int, num_head:int, num_kv_
     atten_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, stats: "OpPerfStats | None" = None):
     
 
-    # 在 GQA 里, g = K/V head 数，而 group size = Q head 数 ÷ K/V head 数。
+    # In GQA, g = number of K/V heads, while group size = number of Q heads / number of K/V heads.
     group_size = math.ceil (num_head/num_kv_head)
 
     wq_hidden = num_head * head_dim
@@ -444,7 +444,7 @@ def gqa_prefill_coarse_stage5(bs:int, seq:int, hidden:int, num_head:int, num_kv_
     atten_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, stats: "OpPerfStats | None" = None):
     
 
-    # 在 GQA 里, g = K/V head 数，而 group size = Q head 数 ÷ K/V head 数。
+    # In GQA, g = number of K/V heads, while group size = number of Q heads / number of K/V heads.
     group_size = math.ceil (num_head/num_kv_head)
 
     wq_hidden = num_head * head_dim

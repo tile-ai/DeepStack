@@ -73,7 +73,6 @@ blocked = {{
     "mosaic.cost.area",
     "mosaic.cost._capacity",
     "mosaic.noc._model_support",
-    "tilesight.distributed.noc._model_support",
 }}
 
 class BlockBinaryProviders(importlib.abc.MetaPathFinder):

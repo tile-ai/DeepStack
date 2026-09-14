@@ -1,17 +1,18 @@
-"""通用 Overlap Analysis 框架 — 实现论文中的递归循环遍历算法。
+"""General overlap analysis framework implementing the paper's recursive
+loop traversal algorithm.
 
-用于多 op group 的 kernel（如 flash attention），建模:
-1. 同一 group 内不同硬件单元的 overlap (roofline max)
-2. 相邻迭代之间 group 的 pipeline overlap (软件流水线)
-3. Wave head/tail 效应
+For kernels with multiple operation groups, such as flash attention, model:
+1. Overlap between different hardware units within a group (roofline maximum).
+2. Pipeline overlap between groups across adjacent iterations (software pipelining).
+3. Wave head/tail effects.
 
-核心数据结构:
-- OpGroup: 一个 op 或一组可 overlap 的 op，占用特定硬件单元
-- LoopNode: 一个循环层次，包含多个 subgroup
+Core data structures:
+- OpGroup: One operation or a group of overlapping operations using specific hardware units.
+- LoopNode: One loop level containing multiple subgroups.
 
-依赖感知调度:
-- OpGroup.depends_on 声明数据依赖 (DAG)
-- model_overlap 枚举所有合法拓扑排序，选最优调度
+Dependency-aware scheduling:
+- OpGroup.depends_on declares data dependencies as a DAG.
+- model_overlap enumerates all valid topological orders and selects the optimal schedule.
 """
 import math
 import itertools
@@ -23,15 +24,16 @@ log = logging.getLogger(__name__)
 
 
 # =====================================================================
-# 数据结构
+# Data structures
 # =====================================================================
 
 @dataclass
 class HardwareUsage:
-    """一个 op group 在各硬件单元上的时间 (秒)。
+    """Time spent by an operation group on each hardware unit, in seconds.
 
-    时间已经过 bandwidth 转换，直接可比较。
-    不同单元之间可 overlap (取 max)，同单元串行 (求和)。
+    Resource quantities have already been converted to time using bandwidth,
+    so the values can be compared directly. Different units can overlap
+    (take the maximum); work on the same unit is serial (sum the times).
     """
     ddr_time: float = 0.0
     l2_time: float = 0.0
@@ -41,18 +43,18 @@ class HardwareUsage:
     tensor_time: float = 0.0      # tensor core
     cuda_time: float = 0.0        # cuda core (FMA)
     sfu_time: float = 0.0         # special function unit
-    network_time: float = 0.0     # 网络通信时间 (用于分布式 compute-comm overlap)
+    network_time: float = 0.0     # Network communication time (for distributed compute-comm overlap)
 
     @property
     def total_no_overlap(self):
-        """完全串行时间（所有单元求和）。"""
+        """Fully serial execution time, summed across all units."""
         return (self.ddr_time + self.l2_time + self.l1_5_time + self.smem_time
                 + self.tmem_time + self.tensor_time + self.cuda_time + self.sfu_time
                 + self.network_time)
 
     @property
     def total_full_overlap(self):
-        """完全 overlap 时间（各单元取 max）。"""
+        """Fully overlapped execution time, taking the maximum across units."""
         return max(self.ddr_time, self.l2_time, self.l1_5_time, self.smem_time,
                    self.tmem_time, self.tensor_time, self.cuda_time, self.sfu_time,
                    self.network_time)
@@ -73,14 +75,14 @@ class HardwareUsage:
 
 @dataclass
 class OpGroup:
-    """一个操作组：一个或多个可互相 overlap 的操作。
+    """An operation group containing one or more operations that can overlap.
 
-    同一 group 内的操作使用不同硬件单元，可以 overlap。
-    group 与 group 之间由 sync 分隔，默认串行。
+    Operations within a group use different hardware units and can overlap.
+    Groups are separated by synchronization and execute serially by default.
 
-    depends_on: 此 group 依赖的前驱 group 列表 (数据依赖)。
-        调度时此 group 必须排在所有前驱之后。
-        空列表 = 无依赖，可自由排序。
+    depends_on: List of predecessor groups on which this group depends for data.
+        This group must be scheduled after every predecessor.
+        An empty list indicates no dependencies, allowing unrestricted ordering.
     """
     name: str
     usage: HardwareUsage
@@ -90,17 +92,17 @@ class OpGroup:
 
     @property
     def latency(self):
-        """此 group 的延迟 = 各单元取 max (roofline)。"""
+        """Latency of this group: the maximum across hardware units (roofline)."""
         return self.usage.total_full_overlap
 
 
 @dataclass
 class LoopNode:
-    """一个循环层次。
+    """A single loop level.
 
-    sub_groups: 循环体内的 op groups（按 sync 分隔）
-    num_iters: 循环迭代次数
-    sw_pipeline_stage: 软件流水线深度 (1=无)
+    sub_groups: Operation groups in the loop body, separated by synchronization.
+    num_iters: Number of loop iterations.
+    sw_pipeline_stage: Software pipeline depth (1 means no pipelining).
     """
     name: str
     sub_groups: List[OpGroup]
@@ -110,17 +112,17 @@ class LoopNode:
 
 
 # =====================================================================
-# DAG 拓扑排序枚举 (自己实现, 无外部依赖)
+# Enumerate DAG topological sorts (implemented locally, no external dependencies)
 # =====================================================================
 
 def _build_dag(groups: List[OpGroup]) -> Tuple[List[List[int]], List[int], bool]:
-    """从 groups 的 depends_on 构建 DAG (邻接表 + 入度)。
+    """Build a DAG (adjacency list and in-degrees) from the groups' depends_on lists.
 
     Returns:
         (adj, in_degree, has_deps)
-        adj[i] = [j, ...] 表示 i → j (i 是 j 的前驱)
-        in_degree[j] = 入度
-        has_deps = 是否存在任何依赖
+        adj[i] = [j, ...] represents i -> j (i is a predecessor of j).
+        in_degree[j] is the in-degree of j.
+        has_deps indicates whether any dependencies exist.
     """
     n = len(groups)
     group_to_idx = {id(g): i for i, g in enumerate(groups)}
@@ -141,19 +143,19 @@ def _build_dag(groups: List[OpGroup]) -> Tuple[List[List[int]], List[int], bool]
 
 
 def all_topological_sorts_builtin(groups: List[OpGroup]) -> List[List[int]]:
-    """枚举 DAG 的所有合法拓扑排序 (自己实现, 递归 DFS)。
+    """Enumerate all valid topological orders of a DAG using a custom recursive DFS.
 
-    算法: Kahn 变体 — 每次从所有 in_degree=0 的节点中选一个,
-    递归处理剩余图, 回溯时恢复状态。
+    Algorithm: a variant of Kahn's algorithm. Choose one node with in_degree=0,
+    recurse on the remaining graph, and restore the state when backtracking.
 
-    复杂度: O(n! / 依赖约束), 适用于 n <= 8 的小 DAG。
-    无依赖时退化为 n! 全排列。
+    Complexity: O(n! / dependency constraints), suitable for small DAGs with n <= 8.
+    With no dependencies, this enumerates all n! permutations.
     """
     adj, in_degree, has_deps = _build_dag(groups)
     n = len(groups)
 
     if not has_deps:
-        # 无任何依赖 → 全排列
+        # No dependencies -> all permutations
         return [list(p) for p in itertools.permutations(range(n))]
 
     results = []
@@ -165,13 +167,13 @@ def all_topological_sorts_builtin(groups: List[OpGroup]) -> List[List[int]]:
             return
         for i in range(n):
             if in_degree[i] == 0 and i not in current:
-                # 选 i 加入排列
+                # Add i to the permutation
                 current.append(i)
-                # 更新后继入度
+                # Update successor in-degrees
                 for j in adj[i]:
                     in_degree[j] -= 1
                 dfs()
-                # 回溯
+                # Backtrack
                 current.pop()
                 for j in adj[i]:
                     in_degree[j] += 1
@@ -181,7 +183,7 @@ def all_topological_sorts_builtin(groups: List[OpGroup]) -> List[List[int]]:
 
 
 def all_topological_sorts_networkx(groups: List[OpGroup]) -> List[List[int]]:
-    """用 NetworkX 枚举所有拓扑排序 (用于交叉验证)。"""
+    """Enumerate all topological orders with NetworkX for cross-validation."""
     import networkx as nx
 
     adj, in_degree, has_deps = _build_dag(groups)
@@ -197,7 +199,7 @@ def all_topological_sorts_networkx(groups: List[OpGroup]) -> List[List[int]]:
 
 
 def verify_topological_sorts(groups: List[OpGroup]) -> bool:
-    """验证自己实现与 NetworkX 结果一致。"""
+    """Verify that the custom implementation matches NetworkX."""
     builtin = all_topological_sorts_builtin(groups)
     nx_result = all_topological_sorts_networkx(groups)
 
@@ -216,13 +218,13 @@ def verify_topological_sorts(groups: List[OpGroup]) -> bool:
 
 
 # =====================================================================
-# 辅助函数
+# Helper functions
 # =====================================================================
 
 def hw_usage_from_resources(ddr_io, l2_io, smem_io, arch,
                             tensor_flops=0, cuda_flops=0, sfu_flops=0,
                             max_util=0.9, l1_5_io=0, tmem_io=0):
-    """从资源量 + arch bandwidth 构造 HardwareUsage (per-SM 时间)。"""
+    """Build HardwareUsage (per-SM times) from resource quantities and architecture bandwidth."""
     sm = arch.sm_count
     ddr_t = ddr_io / arch.ddr_bandwidth * sm / max_util if arch.ddr_bandwidth > 0 else 0
     l2_t = l2_io / arch.l2_bandwidth * sm / max_util if arch.l2_bandwidth > 0 else 0
@@ -242,15 +244,16 @@ def hw_usage_from_resources(ddr_io, l2_io, smem_io, arch,
 
 
 # =====================================================================
-# ModelOverlap: 在给定 stage 下模拟 op groups 的 overlap
+# ModelOverlap: simulate overlap between op groups at a given stage
 # =====================================================================
 
 def simulate_schedule(groups: List[OpGroup], stage: int,
                       order: List[int]) -> Tuple[float, Dict]:
-    """模拟一种 op group 排列顺序在给定 pipeline stage 下的延迟。
+    """Simulate the latency of an operation group ordering at a given pipeline stage count.
 
-    stage=1 (无 pipeline): groups 间串行，同 group 内各单元 overlap
-    stage>=2 (有 pipeline): 各硬件单元独立流水，延迟 = max(各单元总时间)
+    stage=1 (no pipeline): groups execute serially; units within a group overlap.
+    stage>=2 (pipeline): hardware units pipeline independently;
+        latency = max(total time for each unit).
 
     Returns:
         (latency_per_iter, util_dict)
@@ -278,13 +281,13 @@ def simulate_schedule(groups: List[OpGroup], stage: int,
 
 def model_overlap(groups: List[OpGroup], stage: int,
                   try_all_orders: bool = False) -> Tuple[float, Dict]:
-    """ModelOverlap: 枚举所有合法调度顺序 (尊重依赖), 选最优。
+    """ModelOverlap: enumerate all valid dependency-respecting schedules and select the best.
 
     Args:
-        groups: op groups (可能带 depends_on 依赖)
-        stage: 等效 pipeline depth
-        try_all_orders: True = 枚举所有合法拓扑排序
-                        False = 只用原始顺序
+        groups: Operation groups, optionally with depends_on dependencies.
+        stage: Effective pipeline depth.
+        try_all_orders: If True, enumerate all valid topological orders.
+            If False, use only the original order.
 
     Returns:
         (best_latency_per_iter, best_util)
@@ -296,11 +299,11 @@ def model_overlap(groups: List[OpGroup], stage: int,
     if not try_all_orders:
         return simulate_schedule(groups, stage, list(range(n)))
 
-    # 枚举所有合法拓扑排序 (尊重 depends_on 依赖)
+    # Enumerate all valid topological sorts (respecting depends_on dependencies)
     legal_orders = all_topological_sorts_builtin(groups)
 
     if not legal_orders:
-        # 有环或其他问题, 回退到原始顺序
+        # Cycle or other issue detected; fall back to the original order
         log.warning("No legal topological sort found, using original order")
         return simulate_schedule(groups, stage, list(range(n)))
 
@@ -323,17 +326,18 @@ def model_overlap(groups: List[OpGroup], stage: int,
 
 
 # =====================================================================
-# AnalyzeLoop: 递归分析循环层次
+# AnalyzeLoop: recursively analyze the loop hierarchy
 # =====================================================================
 
 def analyze_loop(node: LoopNode, stage: int) -> Tuple[float, Dict]:
-    """递归分析一个循环节点。
+    """Recursively analyze a loop node.
 
-    对应论文算法的 AnalyzeLoop。
+    Corresponds to AnalyzeLoop in the paper's algorithm.
 
     Args:
-        node: LoopNode
-        stage: 从上层传入的等效 pipeline stage (occupancy × 外层 pipeline)
+        node: LoopNode.
+        stage: Effective pipeline stage count inherited from the parent
+            (occupancy x outer pipeline depth).
 
     Returns:
         (total_latency, util_dict)
@@ -341,7 +345,7 @@ def analyze_loop(node: LoopNode, stage: int) -> Tuple[float, Dict]:
     new_stage = node.sw_pipeline_stage * stage
 
     if node.is_inner_loop:
-        # 内层循环: 所有 sub_groups 作为一次迭代的 body
+        # Inner loop: all sub_groups form the body of one iteration
         lat_per_iter, util_per_iter = model_overlap(
             node.sub_groups, new_stage, try_all_orders=True)
 
@@ -360,13 +364,13 @@ def analyze_loop(node: LoopNode, stage: int) -> Tuple[float, Dict]:
             epilogue = min(depth, node.num_iters) * epilogue_per_iter if depth > 0 else 0
             total = prologue + steady + epilogue
 
-        # util 缩放为 total 级别 (per_iter → total)
+        # Scale util to the total level (per_iter -> total)
         total_util = {k: v * node.num_iters for k, v in util_per_iter.items()}
 
         return total, total_util
 
     else:
-        # 外层循环: 逐个处理 sub_groups
+        # Outer loop: process sub_groups one by one
         metrics_list = []
         for sg in node.sub_groups:
             if sg.is_loop and sg.loop_node is not None:
@@ -386,12 +390,12 @@ def analyze_loop(node: LoopNode, stage: int) -> Tuple[float, Dict]:
 
 
 # =====================================================================
-# OverlapAnalysis: 顶层入口
+# OverlapAnalysis: top-level entry point
 # =====================================================================
 
 def overlap_analysis(root_node: LoopNode, tiles_per_sm: int = 1,
                      num_iters_override: int = None) -> Tuple[float, Dict]:
-    """顶层 overlap 分析。"""
+    """Perform top-level overlap analysis."""
     if num_iters_override is not None:
         root_node.num_iters = num_iters_override
 
@@ -400,18 +404,20 @@ def overlap_analysis(root_node: LoopNode, tiles_per_sm: int = 1,
 
 
 # =====================================================================
-# 便捷构造函数
+# Convenience constructors
 # =====================================================================
 
 def make_op_group(name: str, arch, ddr_io=0, l2_io=0, smem_io=0,
                   tensor_flops=0, cuda_flops=0, sfu_flops=0,
                   max_util=0.9, depends_on=None, l1_5_io=0, tmem_io=0) -> OpGroup:
-    """快速创建 OpGroup。
+    """Convenience constructor for OpGroup.
 
     Args:
-        depends_on: 前驱 OpGroup 列表, 调度时此 group 必须排在它们之后。
-        l1_5_io: L1.5 cache IO (bytes), 0 if no L1.5.
-        tmem_io: Tensor Memory IO (bytes) via tcgen05 ld/st datapath, 0 if no TMEM.
+        depends_on: List of predecessor OpGroup objects; this group must be
+            scheduled after all of them.
+        l1_5_io: L1.5 cache I/O in bytes; 0 if there is no L1.5 cache.
+        tmem_io: Tensor Memory I/O in bytes through the tcgen05 ld/st datapath;
+            0 if there is no TMEM.
     """
     usage = hw_usage_from_resources(
         ddr_io, l2_io, smem_io, arch,
@@ -423,7 +429,7 @@ def make_op_group(name: str, arch, ddr_io=0, l2_io=0, smem_io=0,
 
 def make_loop(name: str, sub_groups: List[OpGroup], num_iters: int,
               sw_pipeline_stage: int = 1, is_inner: bool = True) -> LoopNode:
-    """快速创建 LoopNode。"""
+    """Convenience constructor for LoopNode."""
     return LoopNode(
         name=name, sub_groups=sub_groups,
         num_iters=num_iters, sw_pipeline_stage=sw_pipeline_stage,
@@ -431,13 +437,13 @@ def make_loop(name: str, sub_groups: List[OpGroup], num_iters: int,
 
 
 def make_loop_group(name: str, loop_node: LoopNode) -> OpGroup:
-    """将 LoopNode 包装为 OpGroup (用于嵌套)。"""
+    """Wrap a LoopNode as an OpGroup for nesting."""
     return OpGroup(name=name, usage=HardwareUsage(),
                    is_loop=True, loop_node=loop_node)
 
 
 # =====================================================================
-# 与 hete_reg_fusion / hete_smem_fusion 兼容的接口
+# Interface compatible with hete_reg_fusion / hete_smem_fusion
 # =====================================================================
 
 def overlap_to_hete_post(per_tile_lat: float, util: Dict,
@@ -446,7 +452,7 @@ def overlap_to_hete_post(per_tile_lat: float, util: Dict,
                          ddr_read_io: float = 0,
                          l2_read_io: float = 0,
                          l2_hit_rate: float = 0) -> tuple:
-    """将 overlap_analysis 的输出转换为 hete_post_process 的 12-tuple 格式。"""
+    """Convert overlap_analysis output to the 12-tuple format used by hete_post_process."""
     if per_tile_lat <= 0:
         return (0,) * 12
 
@@ -470,7 +476,7 @@ def overlap_analysis_full(root_node: LoopNode, grids, arch,
                           ddr_read_io: float = 0,
                           l2_read_io: float = 0,
                           l2_hit_rate: float = 0) -> tuple:
-    """完整的 overlap 分析 + wave 调整, 输出 12-tuple。"""
+    """Run full overlap analysis with wave adjustment and return a 12-tuple."""
     import numpy as np
 
     per_tile_lat, util = overlap_analysis(root_node, tiles_per_sm=tiles_per_sm)

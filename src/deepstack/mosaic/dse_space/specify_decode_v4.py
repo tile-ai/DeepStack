@@ -1,8 +1,5 @@
-"""
-Single-task version of dse_framework_multi_process_v4_decode_dump_stats.py
-
-直接在 __main__ 里修改参数即可运行：
-  python -m mosaic.dse_space.dse_single_task_decode
+"""Single-task version of dse_framework_multi_process_v4_decode_dump_stats.py.
+Edit the parameters in __main__ and run python -m mosaic.dse_space.specify_decode_v4.
 """
 
 from mosaic.dse_space.parallel_schemes import (
@@ -69,10 +66,8 @@ NUM_KV_POINT = 4
 
 
 def _find_combo_idx(arch: Arch, noc: Hierarchy) -> int:
-    """在 GET_ARCH_NOC_COMBINATIONS() 中查找匹配的 (arch_class, noc_name) 索引。
-
-    _compute_time_row 在子进程中通过 GET_ARCH_NOC_COMBINATIONS()[combo_idx]
-    重建 arch/noc 对象，所以必须找到对应的索引。
+    """Find the matching (arch_class, noc_name) index in GET_ARCH_NOC_COMBINATIONS().
+    Workers reconstruct arch/NoC objects from this index inside _compute_time_row.
     """
     all_combos = GET_ARCH_NOC_COMBINATIONS()
     arch_cls_name = arch.__class__.__name__
@@ -201,7 +196,7 @@ def dse_single_task(
         combo_start_ts = time.time()
         arch, noc = combination[0], combination[1]
 
-        # 查找子进程需要的 combo_idx（对应 GET_ARCH_NOC_COMBINATIONS 的下标）
+        # Find the combo_idx needed by the subprocess (index into GET_ARCH_NOC_COMBINATIONS).
         try:
             combo_idx = _find_combo_idx(arch, noc)
         except ValueError as e:
@@ -398,23 +393,23 @@ def dse_single_task(
 if __name__ == "__main__":
 
     # ========================================================================
-    # ==================== 在这里直接修改参数即可运行 ==========================
+    # ==================== Edit parameters here to run ==========================
     # ========================================================================
 
-    # ---- Workload: 模型, bs, seq ----
-    # 可用模型: "DeepSeekV3", "DeepSeekV3_A8W8", "Qwen3_235b_a22b", "Qwen3_480b_a35b", "Llama3_70b", "Llama3_405b"
+    # ---- Workload: model, bs, seq ----
+    # Available models: "DeepSeekV3", "DeepSeekV3_A8W8", "Qwen3_235b_a22b", "Qwen3_480b_a35b", "Llama3_70b", "Llama3_405b".
     MODEL        = "DeepSeekV3"
     BS           = 1024
     INPUT_SEQ    = 1024
     MAX_SEQ      = 2048
     PARALLEL_SEQ = 1
 
-    # ---- Arch / NoC (可选) ----
-    # 直接用 arch class 和 noc 生成函数构造，设为 None 则搜索 GET_ARCH_NOC_COMBINATIONS() 里的所有组合
-    # arch 可选: stacked_gpu_base(), stacked_gpu_large_matrix(), stacked_gpu_large_vector(), stacked_gpu_high_l1(),
+    # ---- Arch / NoC (optional) ----
+    # Construct directly from the arch class and noc generator; set to None to search all combinations in GET_ARCH_NOC_COMBINATIONS().
+    # arch options: stacked_gpu_base(), stacked_gpu_large_matrix(), stacked_gpu_large_vector(), stacked_gpu_high_l1(),
     #            stacked_gpu_high_l2(), stacked_gpu_high_noc(), stacked_gpu_low_noc(), stacked_gpu_reduced_sm(),
     #            stacked_gpu_wgmma(), H100_SCALED(), H200_SCALED(), H100(), H200(), B200()
-    # noc  可选: torus_mesh_switch_1(), torus_mesh_switch_2(), torus_mesh_mesh_3(),
+    # noc options: torus_mesh_switch_1(), torus_mesh_switch_2(), torus_mesh_mesh_3(),
     #            strong_torus_mesh_switch_4(), weak_torus_mesh_switch_5(),
     #            torus_mesh_switch_7(), torus_mesh_switch_8(), torus_mesh_switch_9(),
     #            h200x8(), h100x8(), h100x32_strong(), h100x32_medium(),
@@ -424,11 +419,11 @@ if __name__ == "__main__":
     ARCH_NOC_LIST = [
         [stacked_gpu_wgmma(), torus_mesh_switch_1()],
     ]
-    # ARCH_NOC_LIST = None              # None = 搜索所有 GET_ARCH_NOC_COMBINATIONS() 组合
+    # ARCH_NOC_LIST = None              # None = search all GET_ARCH_NOC_COMBINATIONS() combinations.
 
-    # ---- Parallel scheme (可选) ----
-    # 指定具体的并行方案。任一参数不为 None 就视为指定了固定方案（未设的默认为 1）
-    # 全部为 None 则搜索所有合法并行方案
+    # ---- Parallel scheme (optional) ----
+    # Specify a parallel scheme. Any non-None parameter selects a fixed scheme (unspecified parameters default to 1).
+    # If all parameters are None, search all valid parallel schemes.
     # TP   = None                     # tensor parallelism,   e.g. 8
     # EP   = None                     # expert parallelism,   e.g. 4
     # SP   = None                     # sequence parallelism, e.g. 1
@@ -444,18 +439,18 @@ if __name__ == "__main__":
     DP   = 1
     PP   = 2
     FSDP = False
-    # ---- tp_transform_moe (可选) ----
-    # None = 默认 TP_TRANSFORM_MOE_MODES (["replace_only", "none"])
-    # 或: ["replace_only"], ["none"], ["replace_only", "none"]
+    # ---- tp_transform_moe (optional) ----
+    # None = default TP_TRANSFORM_MOE_MODES (["replace_only", "none"]).
+    # Or: ["replace_only"], ["none"], ["replace_only", "none"].
     TP_TRANSFORM_MOE = ["replace_only"]
 
-    # ---- 其他 ----
+    # ---- Other settings ----
     NUM_WORKERS     = None          # None = cpu_count // 2
     RUN_DIR         = None          # None = "runs/single_<timestamp>"
     ENABLE_PROC_LOG = False
 
     # ========================================================================
-    # ========================= 以下不需要改动 ================================
+    # ========================= No changes needed below ================================
     # ========================================================================
 
     run_tag = datetime.now().strftime("%Y%m%d_%H%M%S")

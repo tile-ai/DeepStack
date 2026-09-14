@@ -24,37 +24,37 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class RouteStats:
+    """Snapshot of link resources after routing a logical TrafficMatrix through a Hierarchy.
+
+    Contains three parallel matrices of shape [ext_size x ext_size], with each
+    (i,j) corresponding to a physical directed link:
+      - Bandwidth path: traffic (bytes) / total_time_s / bw -> util (0..1)
+      - Energy path: traffic (bytes) x 8 x energy_per_bit (pJ/bit) -> noc_energy_pj (pJ)
+
+    Supports both topology families:
+      - Multilayer SWITCH-only topologies (build_extended_*_switch_only)
+      - Mixed MESH / TORUS / RING / CHAIN topologies (build_extended_*)
     """
-    逻辑 TrafficMatrix 经过 Hierarchy 路由展开后的链路资源快照。
 
-    包含三路并行矩阵（shape [ext_size × ext_size]，每个 (i,j) 对应一条物理有向链路）：
-      - 带宽路：traffic (bytes) / total_time_s / bw → util (0..1)
-      - 能耗路：traffic (bytes) × 8 × energy_per_bit (pJ/bit) → noc_energy_pj (pJ)
-
-    两种拓扑均支持：
-      - 纯 SWITCH 多层（build_extended_*_switch_only）
-      - 混合 MESH / TORUS / RING / CHAIN（build_extended_*）
-    """
-
-    # ── Bottleneck link（扩展节点 ID）────────────────────────────────────────
-    max_link_src: int       # 瓶颈链路 src 的 extended node ID
-    max_link_dst: int       # 瓶颈链路 dst 的 extended node ID
-    max_link_bytes: float   # 该链路承载的字节数
-    max_link_bw: float      # 该链路的带宽 (bytes/s)
+    # -- Bottleneck link (extended node IDs) ----------------------------------------
+    max_link_src: int       # Extended node ID of the bottleneck link's src
+    max_link_dst: int       # Extended node ID of the bottleneck link's dst
+    max_link_bytes: float   # Bytes carried by this link
+    max_link_bw: float      # Bandwidth of this link (bytes/s)
 
     # ── Extended matrices [ext_size × ext_size] ──────────────────────────────
-    traffic: np.ndarray = field(repr=False)  # 字节数
-    bw:      np.ndarray = field(repr=False)  # 带宽 (bytes/s)
-    util:    np.ndarray = field(repr=False)  # 利用率 (0..1) = traffic/total_time_s/bw
+    traffic: np.ndarray = field(repr=False)  # Bytes
+    bw:      np.ndarray = field(repr=False)  # Bandwidth (bytes/s)
+    util:    np.ndarray = field(repr=False)  # Utilization (0..1) = traffic/total_time_s/bw
 
     # ── Energy ───────────────────────────────────────────────────────────────
     energy_per_bit:      np.ndarray = field(repr=False)  # pJ/bit per link
     noc_energy_pj:       np.ndarray = field(repr=False)  # pJ per link = traffic * 8 * energy_per_bit
-    total_noc_energy_pj: float = 0.0                     # sum(noc_energy_pj)，单位 pJ
+    total_noc_energy_pj: float = 0.0                     # sum(noc_energy_pj), in pJ
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 工厂函数
+# Factory function
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_route_stats_core(
@@ -65,22 +65,22 @@ def _build_route_stats_core(
     energy_config: NocEnergyConfig | None,
     switch_only: bool,
 ) -> RouteStats:
-    """
-    给定已汇总的 traffic 矩阵和 bw 矩阵，计算 util / energy / bottleneck，返回 RouteStats。
+    """Compute utilization, energy, and the bottleneck from aggregated traffic and
+    bandwidth matrices, and return RouteStats.
 
-    util[i,j] = (traffic[i,j] / total_time_s) / bw[i,j]   （时间平均利用率）
+    util[i,j] = (traffic[i,j] / total_time_s) / bw[i,j]  (time-averaged utilization)
     """
-    # ── 利用率：时间平均带宽 / 峰值带宽 ─────────────────────────────────────
+    # -- Utilization: time-averaged bandwidth / peak bandwidth ---------------------
     with np.errstate(divide="ignore", invalid="ignore"):
         util = np.where(bw > 0.0, total_traffic / total_time_s / bw, 0.0)
 
-    # ── 瓶颈链路（total_traffic / bw 最大那条）──────────────────────────────
+    # -- Bottleneck link (the one with maximum total_traffic / bw) ------------------
     with np.errstate(divide="ignore", invalid="ignore"):
         ratio = np.where(bw > 0.0, total_traffic / bw, 0.0)
     flat_idx = int(np.argmax(ratio))
     max_i, max_j = divmod(flat_idx, ratio.shape[1])
 
-    # ── 能耗路 ────────────────────────────────────────────────────────────────
+    # -- Energy path ---------------------------------------------------------------
     effective_energy_cfg = energy_config or h.energy_config
     if switch_only:
         energy_per_bit = build_extended_energy_matrix_switch_only(h, effective_energy_cfg)
@@ -121,19 +121,20 @@ def build_route_stats_from_extended(
     total_time_s: float,
     energy_config: NocEnergyConfig | None = None,
 ) -> RouteStats:
-    """
-    从多个已展开的 extended traffic matrices 构建 RouteStats。
+    """Build RouteStats from multiple expanded extended traffic matrices.
 
-    调用方负责预先调用 build_extended_traffic_matrix[_switch_only] 生成各 collective
-    的流量矩阵；本函数对其求和，再统一计算带宽利用率和能耗，不再重新展开逻辑 TM。
+    The caller must first generate each collective's traffic matrix using
+    build_extended_traffic_matrix[_switch_only]. This function sums those matrices
+    and computes bandwidth utilization and energy without re-expanding logical TMs.
 
-    traffic_list 为空时，traffic 视为全零（算子无 collective）。
+    An empty traffic_list is treated as zero traffic (an operator with no collectives).
 
-    参数：
-        traffic_list : 已展开的 extended traffic 矩阵列表（相同 shape），将被逐元素求和
-        h            : Hierarchy，用于构建 bw_matrix 和 energy_matrix
-        total_time_s : e2e 总时间窗口，用作利用率分母
-        energy_config: 可选能耗配置（优先级高于 h.energy_config）
+    Args:
+        traffic_list: Expanded extended traffic matrices with identical shapes,
+            summed elementwise.
+        h: Hierarchy used to build bw_matrix and energy_matrix.
+        total_time_s: Total end-to-end time window used as the utilization denominator.
+        energy_config: Optional energy configuration, taking precedence over h.energy_config.
     """
     switch_only = all(t.kind == TopoKind.SWITCH for t in h.layers)
 
@@ -157,11 +158,10 @@ def build_route_stats(
     h: Hierarchy,
     energy_config: NocEnergyConfig | None = None,
 ) -> RouteStats:
-    """
-    单 TrafficMatrix 场景：内部展开 TM，以 NoC stage latency（hop + 瓶颈链路传输时间）
-    为 total_time_s 计算利用率。
+    """Handle a single TrafficMatrix: expand the TM internally and compute utilization
+    using the NoC stage latency (hop latency + bottleneck link transfer time) as total_time_s.
 
-    多 collective 场景请改用 build_route_stats_from_extended。
+    For multiple collectives, use build_route_stats_from_extended.
     """
     switch_only = all(t.kind == TopoKind.SWITCH for t in h.layers)
 
@@ -172,7 +172,7 @@ def build_route_stats(
         bw                = build_extended_bandwidth_matrix(h)
         traffic, hop_time = build_extended_traffic_matrix(tm, h)
 
-    # stage_latency = hop_time + 瓶颈链路传输时间 = hop_time + max(traffic/bw)
+    # stage_latency = hop_time + bottleneck-link transmission time = hop_time + max(traffic/bw)
     with np.errstate(divide="ignore", invalid="ignore"):
         link_time = float(np.max(np.where(bw > 0.0, traffic / bw, 0.0)))
     stage_latency = float(hop_time) + link_time

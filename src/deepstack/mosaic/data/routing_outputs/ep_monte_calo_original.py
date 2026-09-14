@@ -11,7 +11,7 @@ import pandas as pd
 # ---------------------- CONFIG ----------------------
 M = 64
 n = 8
-EP = 8                 # 👈可改：例如 4, 8, 16, 32, 64, 128, 256
+EP = 8                 # 👈Configurable: e.g., 4, 8, 16, 32, 64, 128, 256.
 R_list = [1, 4, 32]
 T_max = 64
 rng_seed_base = 42

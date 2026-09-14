@@ -691,7 +691,7 @@ def mla_prefill_coarse(bs:int, seq:int, model_arch:LLM_Arch, parallel:ParallelSc
     group_size = math.ceil (num_head/num_kv_head)
     wq_hidden = num_head * head_dim
 
-    # 其中x [bs/dp, seq/sp, hidden], 
+    # Here x [bs/dp, seq/sp, hidden],
     # Wq_a, [hidden, q_down_hidden], Wq_b [q_down_hidden, num_head/tp*(q_nope_head_dim+q_rope_head_dim)]
     # Wkv_down [hidden, (kv_rope_head_dim+kv_nope_head_dim)]
     # Wkv_up [kv_nope_head_dim, kv_nope_up_hidden/tp]

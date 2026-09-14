@@ -191,7 +191,7 @@ def moe_coarse_routed_experts_all_to_all(bs:int, seq:int, hidden:int, moe_down_h
 
         if (bs * seq >= 4096):
             """
-            tokens总数较多, 使用overhead率进行评估
+            For large token counts, estimate using the overhead ratio.
             """
             # each device is responsible for doing: num_activated_experts * [bs/dp/ep1, seq/sp/ep2, hidden] tokens' swiglu
             # assume math.ceil(bs/parallel.dp/parallel.ep1) = 4, math.ceil(seq/parallel.sp/parallel.ep2) = 2, num_activated_experts = 8
@@ -270,10 +270,10 @@ def moe_coarse_routed_experts_all_to_all(bs:int, seq:int, hidden:int, moe_down_h
         
         else:
             """
-            tokens总数较少, 使用真实routing array进行评估
+            For small token counts, estimate using the actual routing array.
             """
 
-            # 策略: 统计这些tokens 累计出来，激活的expert最多的ep组，来评估时间上限。
+            # Strategy: aggregate these tokens and use the ep group with the most expert activations to estimate an upper bound on time.
             expected_num_tokens_per_device = math.ceil(bs/parallel.dp * seq / parallel.sp / parallel.ep) * num_activated_experts
             # well we see from the trace
             repeated_times = parallel.dp * parallel.sp
@@ -305,8 +305,8 @@ def moe_coarse_routed_experts_all_to_all(bs:int, seq:int, hidden:int, moe_down_h
             time_total_activated_experts = 0
             waves_total_activated_experts = 0
             
-            # expert_row 表示, 每个ep组(total_experts/EP个), 每个expert激活次数
-            # counts则是bin count,第index个数的值num_expert表示, 有index个token的expert总共有num_expert个
+            # expert_row gives each expert's activation count within each ep group (total_experts/EP experts per group)
+            # counts is a bin count: the value num_expert at index indicates that num_expert experts each received index tokens
             # for expert_count in counts:
             #     log.info("expert_count: %s", expert_count)
             #     if (activated_tokens == 0):

@@ -65,9 +65,9 @@ def sdcm(D, A, B):
     
     return prob
 
-# # 示例用法：
-# D = 100   # 示例参数，应根据实际情况进行调整
-# A = 8    # 示例参数，应根据实际情况进行调整
-# B = 128    # 示例参数，应根据实际情况进行调整
+# # Example usage:
+# D = 100   # Example parameter; adjust to the actual use case
+# A = 8    # Example parameter; adjust to the actual use case
+# B = 128    # Example parameter; adjust to the actual use case
 # probability = sdcm(D, A, B)
 # print(probability)

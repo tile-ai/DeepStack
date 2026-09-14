@@ -1,6 +1,5 @@
-"""
-惰性重导出子模块符号，避免在包初始化阶段导入大量子包，
-从而避免运行 `python -m mosaic.noc.noc_topo` 时提前间接导入 `noc_topo` 触发警告。
+"""Lazily re-export submodule symbols without importing every subpackage at initialization.
+This avoids importing noc_topo too early when running python -m mosaic.noc.noc_topo.
 """
 
 from importlib import import_module as _import_module  # noqa: F401
@@ -28,7 +27,7 @@ def __getattr__(name):  # PEP 562
             continue
         if hasattr(mod, name):
             attr = getattr(mod, name)
-            globals()[name] = attr  # 缓存
+            globals()[name] = attr  # Cache.
             return attr
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

@@ -186,7 +186,7 @@ def deepep_coarse_routed_experts_all_to_all(bs:int, seq:int, hidden:int, moe_dow
 
         if (bs * seq >= 1024):
             """
-            tokens总数较多, 使用overhead率进行评估
+            For large token counts, estimate using the overhead ratio.
             """
             # each device is responsible for doing: num_activated_experts * [bs/dp/ep1, seq/sp/ep2, hidden] tokens' swiglu
             # assume math.ceil(bs/parallel.dp/parallel.ep1) = 4, math.ceil(seq/parallel.sp/parallel.ep2) = 2, num_activated_experts = 8
@@ -252,10 +252,10 @@ def deepep_coarse_routed_experts_all_to_all(bs:int, seq:int, hidden:int, moe_dow
         
         else:
             """
-            tokens总数较少, 使用真实routing array进行评估
+            For small token counts, estimate using the actual routing array.
             """
 
-            # 策略: 统计这些tokens 累计出来，激活的expert最多的ep组，来评估时间上限。
+            # Strategy: aggregate these tokens and use the ep group with the most expert activations to estimate an upper bound on time.
             expected_num_tokens_per_device = math.ceil(bs/parallel.dp * seq / parallel.sp / parallel.ep) * num_activated_experts
             # well we see from the trace
             repeated_times = parallel.dp * parallel.sp

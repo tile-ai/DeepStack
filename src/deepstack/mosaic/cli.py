@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-DeepStack 命令行接口
-"""
+"""DeepStack command-line interface."""
 
 import argparse
 import sys
@@ -10,14 +8,14 @@ from pathlib import Path
 
 
 def main():
-    """主函数"""
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(
-        description="DeepStack - 3D建模和可视化工具包",
+        description="DeepStack - 3D modeling and visualization toolkit",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例用法:
-  mosaic --version                    # 显示版本信息
-  mosaic --help                       # 显示帮助信息
+Examples:
+  mosaic --version                    # Show version information
+  mosaic --help                       # Show help
         """
     )
     
@@ -30,25 +28,25 @@ def main():
     parser.add_argument(
         "--info",
         action="store_true",
-        help="显示项目信息"
+        help="Show project information"
     )
     
     args = parser.parse_args()
     
     if args.info:
-        print("DeepStack - 3D建模和可视化工具包")
-        print("版本: 0.1.0")
-        print("功能模块:")
-        print("  - 数据模块 (data)")
-        print("  - LLM模块 (llm)")
-        print("  - NOC模块 (noc)")
-        print("  - 并行化模块 (parallelism)")
-        print("  - 性能模块 (perf)")
-        print("  - 工具模块 (utils)")
-        print("  - 架构模块 (arch)")
+        print("DeepStack - 3D modeling and visualization toolkit")
+        print("Version: 0.1.0")
+        print("Modules:")
+        print("  - Data (data)")
+        print("  - LLM (llm)")
+        print("  - NoC (noc)")
+        print("  - Parallelism (parallelism)")
+        print("  - Performance (perf)")
+        print("  - Utilities (utils)")
+        print("  - Architecture (arch)")
         return 0
     
-    # 如果没有参数，显示帮助信息
+    # Show help if no arguments are supplied.
     if len(sys.argv) == 1:
         parser.print_help()
         return 0

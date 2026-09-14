@@ -5,7 +5,7 @@ DeepStack source, and TileSight source are licensed under Apache-2.0 unless a
 path is one of the proprietary binaries listed in [LICENSING.md](LICENSING.md)
 or a file states otherwise.
 
-The four proprietary binary components are governed by
+The three proprietary binary components are governed by
 [LicenseRef-DeepStack-AE-Binary-1.0](LICENSES/LicenseRef-DeepStack-AE-Binary-1.0.txt).
 Their inventory, roles, packaging, and compatibility are described in
 [LICENSING.md](LICENSING.md).

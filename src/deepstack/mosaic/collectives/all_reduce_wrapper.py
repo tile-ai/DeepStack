@@ -34,7 +34,7 @@ def all_reduce_recursive_doubling(all_reduce_op_bytes:OpBytes, parallel:Parallel
 
     dim_size_map = {"tp": parallel.tp, "ep": parallel.ep, "sp": parallel.sp, "cp": parallel.cp, "dp": parallel.dp, "pp": parallel.pp}
     
-    gsize = int(dim_size_map[dim_to_process])  # which -> 该维度的组大小
+    gsize = int(dim_size_map[dim_to_process])  # which -> group size for this dimension.
     
     # assert gsize is power of 2
     assert gsize & (gsize - 1) == 0, log.error("gsize must be power of 2, gsize: %s", gsize)
@@ -42,7 +42,7 @@ def all_reduce_recursive_doubling(all_reduce_op_bytes:OpBytes, parallel:Parallel
     stages = int(math.log2(gsize))
 
     bytes_each_iter = bytes 
-    # 逐 stage 的递归加倍交换，stride = 2^stage
+    # Recursive doubling exchange at each stage, stride = 2^stage.
     total_noc_hop_time = 0
     total_noc_ext_max = 0
 
@@ -96,7 +96,7 @@ def all_reduce_ring(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme, noc_hi
 
     dim_size_map = {"tp": parallel.tp, "ep": parallel.ep, "sp": parallel.sp, "cp": parallel.cp, "dp": parallel.dp, "pp": parallel.pp}
     
-    gsize = int(dim_size_map[dim_to_process])  # which -> 该维度的组大小
+    gsize = int(dim_size_map[dim_to_process])  # which -> group size for this dimension.
 
     stages = (gsize-1)*2
     # bytes means each device holding each tensor size
@@ -134,7 +134,7 @@ def all_reduce_rabenseifner(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme
 
     dim_size_map = {"tp": parallel.tp, "ep": parallel.ep, "sp": parallel.sp, "cp": parallel.cp, "dp": parallel.dp, "pp": parallel.pp}
     
-    gsize = int(dim_size_map[dim_to_process])  # which -> 该维度的组大小
+    gsize = int(dim_size_map[dim_to_process])  # which -> group size for this dimension.
     
     # assert gsize is power of 2
     assert gsize & (gsize - 1) == 0, log.error("gsize must be power of 2, gsize: %s", gsize)
@@ -142,7 +142,7 @@ def all_reduce_rabenseifner(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme
     stages = int(math.log2(gsize))
 
     bytes_each_device = bytes 
-    # 逐 stage 的递归加倍交换，stride = 2^stage
+    # Recursive doubling exchange at each stage, stride = 2^stage.
     total_noc_hop_time = 0
     total_noc_ext_max = 0
 
@@ -198,7 +198,7 @@ def all_reduce_double_tree(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme,
 
     dim_size_map = {"tp": parallel.tp, "ep": parallel.ep, "sp": parallel.sp, "cp": parallel.cp, "dp": parallel.dp, "pp": parallel.pp}
     
-    gsize = int(dim_size_map[dim_to_process])  # which -> 该维度的组大小
+    gsize = int(dim_size_map[dim_to_process])  # which -> group size for this dimension.
     
     # assert gsize is power of 2
     assert gsize & (gsize - 1) == 0, log.error("gsize must be power of 2, gsize: %s", gsize)
@@ -206,58 +206,58 @@ def all_reduce_double_tree(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme,
     stages = int(math.log2(gsize))
 
     bytes_each_device = bytes 
-    # 双二叉树：A 树朝右根 (gsize-1)，B 树朝左根 (0)
+    # Double binary trees: tree A points toward the right root (gsize-1), tree B toward the left root (0).
     total_noc_hop_time = 0
     total_noc_ext_max = 0
     total_traffic = None
 
     tm = TrafficMatrix(parallel.world_size())
 
-    # 每棵树承担一半数据量
+    # Each tree carries half the data.
     bytes_each_iter = bytes_each_device / 2
 
-    # 构建 A 树各层（从偶数叶子到右根）
-    a_levels = []  # 每层若干 [src, dst]
-    current_nodes = list(range(0, gsize, 2))  # 偶数
+    # Build the levels of tree A (from even-numbered leaves to the right root).
+    a_levels = []  # Multiple [src, dst] pairs per level.
+    current_nodes = list(range(0, gsize, 2))  # Even.
     while len(current_nodes) >= 2:
         next_nodes = []
         level_pairs = []
         for j in range(0, len(current_nodes), 2):
             left = current_nodes[j]
             right = current_nodes[j + 1]
-            parent = (left + right) // 2  # 奇数
+            parent = (left + right) // 2  # Odd.
             level_pairs.append([left, parent])
             level_pairs.append([right, parent])
             next_nodes.append(parent)
         a_levels.append(level_pairs)
         current_nodes = next_nodes
     if len(current_nodes) == 1:
-        # 最后一跳到右根
+        # Final hop to the right root.
         a_levels.append([[current_nodes[0], gsize - 1]])
 
-    # 构建 B 树各层（从奇数叶子到左根）
+    # Build the levels of tree B (from odd-numbered leaves to the left root).
     b_levels = []
-    current_nodes = list(range(1, gsize, 2))  # 奇数
+    current_nodes = list(range(1, gsize, 2))  # Odd.
     while len(current_nodes) >= 2:
         next_nodes = []
         level_pairs = []
         for j in range(0, len(current_nodes), 2):
             left = current_nodes[j]
             right = current_nodes[j + 1]
-            parent = (left + right) // 2  # 偶数
+            parent = (left + right) // 2  # Even.
             level_pairs.append([left, parent])
             level_pairs.append([right, parent])
             next_nodes.append(parent)
         b_levels.append(level_pairs)
         current_nodes = next_nodes
     if len(current_nodes) == 1:
-        # 最后一跳到左根
+        # Final hop to the left root.
         b_levels.append([[current_nodes[0], 0]])
 
     assert len(a_levels) == stages and len(b_levels) == stages, \
         f"double_tree levels mismatch, a: {len(a_levels)}, b: {len(b_levels)}, stages: {stages}"
 
-    # 向上规约阶段（A、B 同步进行，每一层为一 stage）
+    # Upward reduction phase (A and B run synchronously, one stage per level).
     for lvl in range(stages):
         traffic_pairs = []
         for src, dst in a_levels[lvl]:
@@ -279,7 +279,7 @@ def all_reduce_double_tree(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme,
             total_traffic += noc_traffic_1
         tm.reset()
 
-    # 反向广播阶段（从根向叶，反向边，层序反转）
+    # Reverse broadcast phase (root to leaves, with reversed edges and reversed level order).
     for lvl in range(stages - 1, -1, -1):
         traffic_pairs = []
         for src, dst in a_levels[lvl]:
@@ -317,7 +317,7 @@ def all_reduce_all_to_all(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme, 
 
     dim_size_map = {"tp": parallel.tp, "ep": parallel.ep, "sp": parallel.sp, "cp": parallel.cp, "dp": parallel.dp, "pp": parallel.pp}
     
-    gsize = int(dim_size_map[dim_to_process])  # which -> 该维度的组大小
+    gsize = int(dim_size_map[dim_to_process])  # which -> group size for this dimension.
 
     stages = 1
     # bytes means each device holding each tensor size
@@ -340,7 +340,7 @@ def all_reduce_all_to_all(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme, 
 def all_reduce_wrapper(all_reduce_op_bytes:OpBytes, parallel:ParallelScheme, noc_hierarchy:Hierarchy, granularity:Modeling_Granularity, dim_to_process:str, bytes:int):
     bytes = uint64(bytes)
 
-    # 统一走 auto-tune 评估多种算法
+    # Always use auto-tune to evaluate multiple algorithms.
     latency_rd, link_rd, traffic_rd = all_reduce_recursive_doubling(all_reduce_op_bytes, parallel, noc_hierarchy, granularity, dim_to_process, bytes)
     latency_ring, link_ring, traffic_ring = all_reduce_ring(all_reduce_op_bytes, parallel, noc_hierarchy, granularity, dim_to_process, bytes)
     latency_rab, link_rab, traffic_rab = all_reduce_rabenseifner(all_reduce_op_bytes, parallel, noc_hierarchy, granularity, dim_to_process, bytes)

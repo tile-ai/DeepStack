@@ -21,21 +21,20 @@ from .dsa_indexer_coarse import dsa_indexer_proj_coarse, dsa_indexer_score_topk_
 log = logging.getLogger(__name__)
 
 # DeepSeek-V3.2 DSA decode:
-# 与 MLA decode 唯一的区别:
-# 1. 多一个 lightning indexer (proj + 对全量 cached_kv 的 score/topk)
-# 2. 主注意力 (MQA, weight absorption) 只 attend 被选中的 topk 个 token,
-#    即 stage4_1 的有效 kv 长度 = min(index_topk, cached_kv)。
-#    被 gather 的 kv 是随机访问, coarse 粒度下按连续访问近似。
-# indexer 的 score 计算仍要读整个 index-k cache (cached_kv * D_i),
-# 这是 DSA 把 O(T) 的读流量从 576B/token (c_kv) 降到 ~128B/token (index-k) 的关键。
+# The only differences from MLA decode:
+# 1. An additional lightning indexer (projections + score/topk over all cached_kv)
+# 2. Main attention (MQA, weight absorption) attends only to the selected topk tokens,
+#    so the effective kv length in stage4_1 = min(index_topk, cached_kv).
+#    The gathered kv involves random access, approximated as contiguous access at coarse granularity.
+# Indexer score computation still reads the entire index-k cache (cached_kv * D_i),
+# which is how DSA reduces O(T) read traffic from 576B/token (c_kv) to ~128B/token (index-k).
 
 
 def dsa_mla_decode_kv_list_coarse(bs:int, seq:int, cached_kv_list:list[int], model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme,
      next_parallel:ParallelScheme, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy):
-    '''
-    Decode: MLA (weight absorption, MQA form) + DSA lightning indexer。
-    返回与 mla_decode_kv_list_coarse 相同: (overall_time_list, stats_list)
-    '''
+    """Model absorbed-weight MLA decode in MQA form plus the DSA lightning indexer.
+    Return (overall_time_list, stats_list), as in mla_decode_kv_list_coarse.
+    """
     assert granularity.get_mode() == "coarse"
     assert parallel.ep == 1
 
@@ -51,7 +50,7 @@ def dsa_mla_decode_kv_list_coarse(bs:int, seq:int, cached_kv_list:list[int], mod
     else:
         _base_stats = None
 
-    # ------------------------------------- MLA: kv 无关的 stage -------------------------------------
+    # ------------------------------------- MLA: kv-independent stages -------------------------------------
     time_stage1 = mla_decode_coarse_stage1(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=_base_stats)
     time_stage2 = mla_decode_coarse_stage2(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=_base_stats)
     time_stage3 = mla_decode_coarse_stage3(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=_base_stats)
@@ -59,7 +58,7 @@ def dsa_mla_decode_kv_list_coarse(bs:int, seq:int, cached_kv_list:list[int], mod
     time_stage5 = mla_decode_coarse_stage5(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=_base_stats)
     time_stage6 = mla_decode_coarse_stage6(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=_base_stats)
 
-    # ------------------------------------- DSA indexer: kv 无关的投影 -------------------------------------
+    # ------------------------------------- DSA indexer: kv-independent projections -------------------------------------
     time_indexer_proj = dsa_indexer_proj_coarse(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=_base_stats)
 
     overall_time_list = []
@@ -70,10 +69,10 @@ def dsa_mla_decode_kv_list_coarse(bs:int, seq:int, cached_kv_list:list[int], mod
         if stats is not None:
             stats.absorb(_base_stats)
 
-        # indexer score + topk: 扫整个 index-k cache
+        # indexer score + topk: scan the entire index-k cache
         time_indexer_score = dsa_indexer_score_topk_coarse(bs=bs, seq=seq, kv_len=cached_kv, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
 
-        # 主注意力: 只 attend topk 个被选中的 token
+        # Main attention: attend only to the selected topk tokens
         effective_kv = min(index_topk, cached_kv)
         time_stage4_1 = mla_decode_coarse_stage4_1(bs=bs, seq=seq, cached_kv=effective_kv, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
 
@@ -99,8 +98,6 @@ def dsa_mla_decode_kv_list_coarse(bs:int, seq:int, cached_kv_list:list[int], mod
 
 def dsa_mla_decode_coarse(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme,
      next_parallel:ParallelScheme, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy):
-    '''
-    单个 cached_kv 的便捷入口, 返回时间标量。
-    '''
+    """Convenience entry point for one cached_kv value; return a scalar time."""
     overall_time_list, _ = dsa_mla_decode_kv_list_coarse(bs=bs, seq=seq, cached_kv_list=[cached_kv], model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
     return overall_time_list[0]

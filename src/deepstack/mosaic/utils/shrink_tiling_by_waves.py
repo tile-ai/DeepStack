@@ -29,7 +29,7 @@ def find_proper_factors(n: int) -> list:
             factors.append(divisor)
             n //= divisor
         divisor += 1
-    if not factors:  # 如果没有找到因数，说明是质数
+    if not factors:  # If no factor is found, the number is prime
         factors.append(n)
     return factors
 
@@ -46,8 +46,8 @@ def shrink_tiling(tb_shape:list, duplicate_factor:int):
         # pick the largest dimension that is divisible by current factor
         candidate_indices = [idx for idx, dim in enumerate(new_shape) if isinstance(dim, int) and dim % factor == 0]
         if not candidate_indices:
-            # 原逻辑：如果没有可用维度则报错
-            # raise ValueError(f"无法将因子 {factor} 应用于当前tiling {new_shape}")
+            # Original logic: raise an error if no dimension is available
+            # raise ValueError(f"Cannot apply factor {factor} to current tiling {new_shape}")
             continue
         best_idx = max(candidate_indices, key=lambda i: new_shape[i])
         new_shape[best_idx] //= factor
@@ -55,15 +55,15 @@ def shrink_tiling(tb_shape:list, duplicate_factor:int):
     return new_shape
 
 def shrink_tiling_by_waves(waves: float, tb_shape: list, wave_util_ratio: float = 0.7):
-    """根据 waves 与 wave_util_ratio 计算 duplicate_factor，并对 tb_shape 进行收缩。
+    """Compute duplicate_factor from waves and wave_util_ratio, then shrink tb_shape.
 
-    参数:
-        waves: 波数，用于计算 duplicate_factor。
-        tb_shape: 原始 tiling 形状。
-        wave_util_ratio: 目标波利用率，默认 0.7。
+    Args:
+        waves: Number of waves used to compute duplicate_factor.
+        tb_shape: Original tiling shape.
+        wave_util_ratio: Target wave utilization; defaults to 0.7.
 
-    返回:
-        收缩后的 tiling 形状（list）。
+    Returns:
+        The reduced tiling shape as a list.
     """
     duplicate_factor = find_waves_duplicate_factor(waves, wave_util_ratio)
     return shrink_tiling(tb_shape, duplicate_factor)

@@ -34,7 +34,7 @@ def add_residual_coarse(bs:int, seq:int, hidden:int, parallel:ParallelScheme, ne
     # x: [bs/dp, seq/sp, hidden]
     # x_residual: [bs/dp, seq/sp, hidden]
     # y: [bs/dp, seq/sp, hidden]
-    # 一般我们认为不会去切这个hidden，因为下一个算子的时候就还需要一个all-reduce的重建
+    # Generally, do not shard this hidden dimension, since the next operator would require an all-reduce to reconstruct it.
 
 
     # ------------------------------------- stage 4 -------------------------------------

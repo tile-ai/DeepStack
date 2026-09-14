@@ -1,10 +1,10 @@
-# Qwen3-Omni 多组件模型的 Phase 2 编排: 分离式部署 (disaggregated)。
+# Phase 2 orchestration for Qwen3-Omni multicomponent models: disaggregated deployment.
 #
-# 每个组件占独立设备组 (全局设备空间上连续的一段 rank), 组件间通过 NoC/网络传
-# hidden state / codec code。与 Phase 1 (同集群串行) 的区别:
-#   - 各组件计算互不抢占 -> thinker decode 与 talker/code2wav 跨请求/跨帧流水重叠
-#   - 组件间传输显式建模 (TrafficMatrix 点对点, 走全局 noc_hierarchy)
-#   - 输出稳态吞吐 (受最慢 stage 限制) 与流水化的延迟链
+# Each component occupies an independent device group (a contiguous rank range in the global device space); components transfer
+# hidden states / codec codes over NoC/network links. Differences from Phase 1 (serial execution on the same cluster):
+#   - Components do not contend for compute -> thinker decode and talker/code2wav overlap in a pipeline across requests/frames.
+#   - Intercomponent transfers are modeled explicitly (TrafficMatrix point-to-point transfers via the global noc_hierarchy).
+#   - Report steady-state throughput (limited by the slowest stage) and the pipelined latency chain.
 import math
 from dataclasses import dataclass
 
@@ -34,8 +34,10 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class OmniStagePlacement:
-    """一个组件 stage 的部署: 全局 rank 区间 [offset, offset+size) + 组内并行方案。
-    parallel.world_size() 必须等于 size。moe_parallel 为 None 时用 parallel。"""
+    """Placement of one component stage: a global rank interval [offset, offset+size)
+    and its within-group parallel scheme. parallel.world_size() must equal size.
+    Use parallel when moe_parallel is None.
+    """
     offset: int
     size: int
     parallel: ParallelScheme
@@ -57,7 +59,7 @@ class OmniStagePlacement:
 
 @dataclass
 class OmniDisaggPlacement:
-    """全部组件的放置。各 stage 的 rank 区间不应重叠 (由调用者保证)。"""
+    """Placement of all component stages. The caller must ensure rank intervals do not overlap."""
     vision: "OmniStagePlacement | None"
     audio: "OmniStagePlacement | None"
     thinker: OmniStagePlacement
@@ -72,7 +74,10 @@ class OmniDisaggPlacement:
 
 def _inter_stage_transfer_time(bytes_total: float, src: "OmniStagePlacement | None", dst: "OmniStagePlacement | None",
                                total_devices: int, noc_hierarchy: Hierarchy):
-    """组件间激活传输: 源组每设备持有 1/n_src 分片, 均匀发往目的组; 总流量 = bytes_total。"""
+    """Model activation transfer between component groups. Each source device holds
+    1/n_src of the input and sends it uniformly to the destination group;
+    bytes_total is the total transfer volume.
+    """
     if src is None or dst is None or bytes_total <= 0:
         return 0.0
     tm = TrafficMatrix(total_devices)
@@ -87,14 +92,15 @@ def _inter_stage_transfer_time(bytes_total: float, src: "OmniStagePlacement | No
 def modeling_omni_disagg(omni: Omni_Arch, workload: OmniWorkload, placement: OmniDisaggPlacement,
                          granularity: Modeling_Granularity, single_chip: Arch, noc_hierarchy: Hierarchy,
                          thinker_routing: "np.ndarray | None" = None, talker_routing: "np.ndarray | None" = None):
-    """分离式部署的端到端建模。返回 metrics dict。
-    noc_hierarchy 是覆盖全部 total_devices 的全局层级拓扑。"""
+    """Model disaggregated end-to-end execution and return a metrics dictionary.
+    noc_hierarchy covers all total_devices in the global deployment.
+    """
     bs = workload.bs
     wl = workload
     total_devices = placement.total_devices()
-    act_bytes = 2  # bf16 激活
+    act_bytes = 2  # bf16 activations.
 
-    # ---- 输入 token 换算 (与 Phase 1 一致) ----
+    # ---- Convert inputs to token counts (same as Phase 1) ----
     vision_patches, vision_tokens = 0, 0
     if omni.vision_encoder is not None and placement.vision is not None:
         ve = omni.vision_encoder
@@ -108,7 +114,7 @@ def modeling_omni_disagg(omni: Omni_Arch, workload: OmniWorkload, placement: Omn
     audio_tokens = omni.audio_encoder.num_tokens(wl.audio_in_seconds) if (omni.audio_encoder is not None and placement.audio is not None and wl.audio_in_seconds > 0) else 0
     seq_in = wl.text_in_tokens + vision_tokens + audio_tokens
 
-    # ---- 各 stage 计算时间 (复用 Phase 1 组件函数, 各自的并行方案) ----
+    # ---- Compute time per stage (reuse Phase 1 component functions with each component's parallel scheme) ----
     t_vision, _ = modeling_vision_encoder(omni.vision_encoder, bs, vision_patches, placement.vision.parallel,
                                           granularity, single_chip, noc_hierarchy) if vision_patches > 0 else (0.0, {})
     t_audio, _ = modeling_audio_encoder(omni.audio_encoder, bs, wl.audio_in_seconds, placement.audio.parallel,
@@ -121,13 +127,13 @@ def modeling_omni_disagg(omni: Omni_Arch, workload: OmniWorkload, placement: Omn
     t_tpot, _ = modeling_llm_decode_step(omni.thinker, bs, kv_mid, th.parallel, th.moe,
                                          granularity, single_chip, noc_hierarchy, routing_array=thinker_routing)
 
-    # ---- 组件间传输 ----
+    # ---- Intercomponent transfers ----
     t_xfer_vis = _inter_stage_transfer_time(bs * vision_tokens * omni.thinker.hidden_size * act_bytes,
                                             placement.vision, placement.thinker, total_devices, noc_hierarchy)
     t_xfer_aud = _inter_stage_transfer_time(bs * audio_tokens * omni.thinker.hidden_size * act_bytes,
                                             placement.audio, placement.thinker, total_devices, noc_hierarchy)
 
-    # encoder 两路可并行 (不同设备组)
+    # The two encoder paths can run in parallel (on different device groups).
     ttft = max(t_vision + t_xfer_vis, t_audio + t_xfer_aud) + t_thinker_prefill
 
     metrics = {
@@ -138,7 +144,7 @@ def modeling_omni_disagg(omni: Omni_Arch, workload: OmniWorkload, placement: Omn
         "TTFT": ttft, "text_TPOT": t_tpot,
     }
 
-    # ---- 音频输出路径 ----
+    # ---- Audio output path ----
     if omni.talker is not None and placement.talker is not None and wl.audio_out_seconds > 0:
         num_frames = omni.num_codec_frames(wl.audio_out_seconds)
         tk = placement.talker
@@ -168,7 +174,7 @@ def modeling_omni_disagg(omni: Omni_Arch, workload: OmniWorkload, placement: Omn
                                                   granularity, single_chip, noc_hierarchy, with_left_context=True)
         t_c2w_per_frame = t_c2w_steady / wl.first_chunk_frames
 
-        # 传输: thinker -> talker (prefix hidden, 一次性), talker -> cp (每帧), cp -> c2w (codes, 每帧)
+        # Transfers: thinker -> talker (prefix hidden, once), talker -> cp (per frame), cp -> c2w (codes, per frame).
         t_xfer_th_tk = _inter_stage_transfer_time(bs * talker_prefix * omni.thinker.hidden_size * act_bytes,
                                                   placement.thinker, placement.talker, total_devices, noc_hierarchy)
         t_xfer_tk_cp = _inter_stage_transfer_time(bs * omni.talker.hidden_size * act_bytes,
@@ -176,22 +182,22 @@ def modeling_omni_disagg(omni: Omni_Arch, workload: OmniWorkload, placement: Omn
         t_xfer_cp_cw = _inter_stage_transfer_time(bs * omni.num_code_groups * 4.0,
                                                   placement.code_predictor, placement.code2wav, total_devices, noc_hierarchy)
 
-        # 每帧: talker / code predictor / code2wav 在不同设备组上, 跨帧流水;
-        # 帧节拍受最慢者限制, 单帧延迟为三段之和 (+ 帧级传输)
+        # Per frame: talker / code predictor / code2wav run on different device groups, pipelined across frames.
+        # The frame interval is limited by the slowest component; single-frame latency is the sum of the three stages (+ frame-level transfers).
         frame_stage_times = [t_talker_step, cp_steps * t_cp_step + t_xfer_tk_cp, t_c2w_per_frame + t_xfer_cp_cw]
         t_frame_pipelined = max(frame_stage_times)
         t_frame_latency = sum(frame_stage_times)
 
-        # 首音频包: encoder -> thinker prefill -> 等 wait 个 text token -> 传 hidden -> talker prefill
-        #           -> 首 chunk 逐帧生成 (帧级流水: 首帧延迟 + (n-1) 个节拍) -> 首 chunk vocoder
+        # First audio packet: encoder -> thinker prefill -> wait for wait text tokens -> transfer hidden states -> talker prefill
+        #           -> generate the first chunk frame by frame (frame-level pipeline: first-frame latency + (n-1) frame intervals) -> first-chunk vocoder.
         first_audio_latency = (ttft + wl.talker_wait_text_tokens * t_tpot + t_xfer_th_tk + t_resize + t_talker_prefill
                                + t_frame_latency + (wl.first_chunk_frames - 1) * max(t_talker_step, cp_steps * t_cp_step + t_xfer_tk_cp)
                                + t_c2w_first)
 
-        # 稳态音频 RTF: 帧节拍 x 帧率 (thinker decode 在独立设备组, 不占音频路径)
+        # Steady-state audio RTF: frame interval x frame rate (thinker decode uses an independent device group, without occupying the audio path).
         audio_rtf = omni.codec_frame_rate * t_frame_pipelined
 
-        # 稳态吞吐 (连续请求流): 每请求各 stage 忙时, 受最慢 stage 限制
+        # Steady-state throughput (continuous request stream): use each stage's busy time per request, limited by the slowest stage.
         stage_busy = {
             "vision": t_vision,
             "audio": t_audio,
@@ -233,7 +239,7 @@ if __name__ == "__main__":
 
     omni = Qwen3_Omni_30b_a3b()
 
-    # 16 设备全局拓扑: thinker 8, talker 4, vision 1, audio 1, cp 1, c2w 1
+    # Global topology with 16 devices: thinker 8, talker 4, vision 1, audio 1, cp 1, c2w 1.
     noc_hierarchy = torus_mesh_switch_1()
     single_chip = stacked_gpu_base()
     granularity = Modeling_Granularity(mode="coarse", comp_comm_overlap=True, auto_tune=False, dump_perf_log=False)

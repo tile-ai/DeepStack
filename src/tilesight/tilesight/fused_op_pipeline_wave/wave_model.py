@@ -8,24 +8,24 @@ log = logging.getLogger(__name__)
 def compute_wave_adjusted_latency(sm_latency, tiles_per_sm, total_tiles, arch,
                                   pipeline_detail=None, mma_type="wmma",
                                   tile_res=None, data_bytes=2, sm_count_override=None):
-    """计算考虑 wave head/tail 效应的 kernel 总延迟。
+    """Compute total kernel latency, accounting for wave head/tail effects.
 
-    关键改进: 当 total_tiles < sm_count 时, 活跃 SM 数 < sm_count,
-    每个活跃 SM 分到更多的 DDR/L2 共享带宽, per-tile 延迟更短。
+    When total_tiles < sm_count, fewer than sm_count SMs are active, so each active
+    SM receives more shared DDR/L2 bandwidth and has a shorter per-tile latency.
 
-    如果提供了 tile_res, 会对 tail wave (以及 total_tiles < sm_count 的情况)
-    用正确的 active_sms 重新计算 per-tile latency。
+    If tile_res is provided, recompute per-tile latency with the correct active_sms
+    for the tail wave and for cases where total_tiles < sm_count.
 
     Args:
-        sm_latency: full wave 下一个 SM 的延迟 (秒), 假设所有 SM 活跃
-        tiles_per_sm: occupancy
-        total_tiles: 空间 tile 总数 (gridM * gridN)
-        arch: 架构对象
-        pipeline_detail: PipelineDetail from full-wave computation
-        mma_type: MMA 类型
-        tile_res: TileResources, 用于精确重算 tail wave latency (可选)
-        data_bytes: 数据类型字节数
-        sm_count_override: 覆盖 sm_count (如 utcmma_cta2 用 sm_count//2)
+        sm_latency: Latency of one SM in a full wave, in seconds, assuming all SMs are active.
+        tiles_per_sm: Occupancy.
+        total_tiles: Total spatial tile count (gridM * gridN).
+        arch: Architecture object.
+        pipeline_detail: PipelineDetail from the full-wave computation.
+        mma_type: MMA type.
+        tile_res: Optional TileResources for precise recomputation of tail-wave latency.
+        data_bytes: Data type size in bytes.
+        sm_count_override: Override sm_count, such as sm_count//2 for utcmma_cta2.
 
     Returns:
         (total_latency, wave_info)
@@ -50,7 +50,7 @@ def compute_wave_adjusted_latency(sm_latency, tiles_per_sm, total_tiles, arch,
 
     # === Full waves ===
     if num_full_waves >= 1:
-        # Full wave: 所有 sm_count 个 SM 活跃, sm_latency 已正确
+        # Full wave: all sm_count SMs are active; sm_latency is already correct
         head_wave_time = sm_latency * head_penalty
         middle_waves = max(num_full_waves - 1, 0)
         middle_wave_time = sm_latency
@@ -59,27 +59,27 @@ def compute_wave_adjusted_latency(sm_latency, tiles_per_sm, total_tiles, arch,
         middle_waves = 0
         middle_wave_time = 0.0
 
-    # === Tail wave (包括 total_tiles < sm_count 的情况) ===
+    # === Tail wave (including total_tiles < sm_count) ===
     #
-    # GPU 调度是 round-robin: 先每 SM 分 1 个 tile, 填满后再分第 2 个。
-    # 所以 tail_tiles 个 tile 的分配:
-    #   - tail_tiles <= sm_count: 每个活跃 SM 恰好 1 个 tile
-    #   - tail_tiles > sm_count: 所有 SM 活跃, busiest SM 有 ceil(tail_tiles/sm_count) 个
+    # GPU scheduling is round-robin: assign 1 tile per SM first, then assign the second tile after all SMs are filled.
+    # Therefore, tail_tiles tiles are assigned as follows:
+    #   - tail_tiles <= sm_count: exactly 1 tile per active SM
+    #   - tail_tiles > sm_count: all SMs are active, and the busiest SM has ceil(tail_tiles/sm_count) tiles
     #
     if tail_tiles > 0:
         if tail_tiles <= sm_count:
-            # 不够填满所有 SM, 每个活跃 SM 只分到 1 个 tile
+            # Not enough tiles to fill all SMs; each active SM receives only 1 tile
             active_sms = tail_tiles
             tail_tiles_per_sm = 1
         else:
-            # 多于 SM 数, 所有 SM 活跃
+            # More tiles than SMs; all SMs are active
             active_sms = sm_count
             tail_tiles_per_sm = math.ceil(tail_tiles / sm_count)
-            # 不能超过 occupancy 容量
+            # Must not exceed occupancy capacity
             tail_tiles_per_sm = min(tail_tiles_per_sm, tiles_per_sm)
 
         if tile_res is not None:
-            # 精确重算: 用正确的 active_sms 和 tail_tiles_per_sm
+            # Recalculate accurately using the correct active_sms and tail_tiles_per_sm
             from .pipeline_overlap import compute_pipeline_tile_latency_with_occupancy
             tail_sm_latency, _ = compute_pipeline_tile_latency_with_occupancy(
                 tile_res, tail_tiles_per_sm, arch, data_bytes=data_bytes,
@@ -95,7 +95,7 @@ def compute_wave_adjusted_latency(sm_latency, tiles_per_sm, total_tiles, arch,
         tail_wave_time = 0.0
         active_sms = sm_count
 
-    # === 总延迟 ===
+    # === Total latency ===
     total_latency = head_wave_time + middle_waves * middle_wave_time + tail_wave_time
 
     waves = total_tiles / max(tiles_per_wave, 1)

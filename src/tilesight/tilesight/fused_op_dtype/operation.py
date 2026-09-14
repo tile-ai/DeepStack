@@ -62,7 +62,7 @@ class Operation:
         self.warp=[]
         self.wmma=[]
         # fuse levels & bits
-        # self.mem_levels = {'in1': [], 'in2': [], 'out1': []} # 初始化为空字典,这个最后要送到modeling里去
+        # self.mem_levels = {'in1': [], 'in2': [], 'out1': []} # Initialize as an empty dictionary; pass this to modeling eventually
         self.mem_levels={}
         # unique attributes
         self.num_ops = None

@@ -9,7 +9,7 @@ d4bc9b8a64cd28ad55cb05bb247e61834f7af94a02a30b3424563c14a4ce2f73  reference/pape
 e512cb058884d62794c19f0ac470c708d5ef0c3154d2b32a204b624a6acf50af  ../../ae/fig22.py
 9d639105be1d4ed077410873798bf759ba3e28c7bf456bde605bf72c31b900e0  ../../tools/build_fig22_manifest.py
 9102db580440b2e4f6c1fc965a2c35cef4d933ab838921b1f3f4cd1f7f98a692  ../../src/deepstack/mosaic/dse_space/case_study_which_layer_noc_matter/noc_bw_config.py
-03ea6a81346dcd8d9d4573500ffc4e06518765bdb8b62da101e0aabab8e87197  ../../src/deepstack/mosaic/dse_space/dse_framework_multi_process_v4_decode_dump_stats.py
-412c0a14a33129ec62b2be41ba36fdcfbf0b8108687bb32892ff9bdf5effa0c9  ../../src/deepstack/mosaic/dse_space/dse_framework_multi_process_v4_prefill_dump_stats.py
-f8b82f1f19f961d3ed435a94935a76e9066e7b57bd3bff86ec789563e9d4da90  ../../src/deepstack/mosaic/llm/swiglu/swiglu_coarse_group_gemm.py
+f9a50ac7abc1e1857b06337a673e8635462178b8048e8af52f0f48f14d164ca9  ../../src/deepstack/mosaic/dse_space/dse_framework_multi_process_v4_decode_dump_stats.py
+0b0ba93397ffba814d2830620469eac8e3c42cbc3e8a15a00aef35f28b0fb848  ../../src/deepstack/mosaic/dse_space/dse_framework_multi_process_v4_prefill_dump_stats.py
+f1fffff7585477e5ca18a67d254c16bfe509076e812dd8a0fa316eb702c1b6b5  ../../src/deepstack/mosaic/llm/swiglu/swiglu_coarse_group_gemm.py
 6c744db4ce70beda6e5ef8e984062669fc74bb3134c0abcb244cd2baddd213f9  ../../src/deepstack/mosaic/data/aime_ds_r1/moe_activations_batch0.npz

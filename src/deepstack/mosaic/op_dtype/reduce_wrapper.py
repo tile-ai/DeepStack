@@ -32,7 +32,7 @@ def allocate_tiling(output_shape:tuple, out_tb_prod:int):
                 factors.append(divisor)
                 n //= divisor
             divisor += 1
-        # 若没有找到因数且 n>1，说明 n 本身是质数，将其作为因子加入
+        # If no factor is found and n>1, n itself is prime; add it as a factor
         if not factors and n > 1:
             factors.append(n)
         return factors
@@ -40,7 +40,7 @@ def allocate_tiling(output_shape:tuple, out_tb_prod:int):
     factors = find_proper_factors(out_tb_prod)
     tiling = list(output_shape)
 
-    # 从左到右优先，为每个因子寻找可整除的维度并分配（做除法）
+    # For each factor, find and assign a divisible dimension (by division), prioritizing left to right
     for f in factors:
         placed = False
         for i in range(len(tiling)):
@@ -49,7 +49,7 @@ def allocate_tiling(output_shape:tuple, out_tb_prod:int):
                 placed = True
                 break
         if not placed:
-            # 无法分配该因子，跳过并记录日志
+            # Cannot assign this factor; skip it and log the event
             # log.warning("allocate_tiling -> factor %s cannot be allocated for output_shape=%s", f, output_shape)
             log.info("allocate_tiling -> factor %s cannot be allocated for output_shape=%s", f, output_shape)
 
@@ -152,7 +152,7 @@ def reduce_wrapper(reduce_op_bytes:OpBytes, granularity:Modeling_Granularity, si
     if output_shape == input1_shape:
         # time = 0
         # return (time), None
-        bound_time    = 0.0  # 相当于 time
+        bound_time    = 0.0  # Equivalent to time
         ddr_util      = 0.0
         l2_hit_rate   = 0.0
         l2_util       = 0.0
@@ -180,7 +180,7 @@ def reduce_wrapper(reduce_op_bytes:OpBytes, granularity:Modeling_Granularity, si
             sfu_util,
         )
 
-        # out_tb_shape 对这个 degenerate reduce 没有意义，保持 None 即可
+        # out_tb_shape is meaningless for this degenerate reduce; leave it as None
         return hete_post_data, None
 
     assert input1_shape[:-1] == output_shape[:-1] and input1_shape[-1] != output_shape[-1], "input1_shape should only differ from output_shape in the last dimension"
@@ -213,7 +213,7 @@ def reduce_wrapper(reduce_op_bytes:OpBytes, granularity:Modeling_Granularity, si
 
         # reduce_threads_info=[0,2] 
         # reduce thread at reduce axis 0, reduce thread is 2
-        # 对应reduction_shape以及reduction_threads的维度都要除以reduce_threads_info
+        # Divide the corresponding dimensions of both reduction_shape and reduction_threads by reduce_threads_info
         # reduction_axis_mapping[reduce_threads_info[0],1]=math.ceil(reduction_axis_mapping[reduce_threads_info[0],1]/reduce_threads_info[1])
         # reduction_shape[reduce_threads_info[0]]=math.ceil(reduction_shape[reduce_threads_info[0]]/reduce_threads_info[1])
         # ----------------------------------------------------------------------------------------------

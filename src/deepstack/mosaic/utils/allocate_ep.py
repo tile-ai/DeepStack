@@ -16,7 +16,7 @@ def allocate_ep(parallel: ParallelScheme, bs: int, seq: int):
                 factors.append(divisor)
                 n //= divisor
             divisor += 1
-        # 若没有找到因数且 n>1，说明 n 本身是质数，将其作为因子加入
+        # If no factor is found and n>1, n itself is prime; add it as a factor
         if not factors and n > 1:
             factors.append(n)
         return factors
@@ -37,7 +37,7 @@ def allocate_ep(parallel: ParallelScheme, bs: int, seq: int):
     ep1 = 1
     ep2 = 1
 
-    # 依次尝试将 ep 的素因子分配：优先给 seq -> ep2，其次给 bs -> ep1
+    # Try assigning each prime factor of ep in order: prioritize seq -> ep2, then bs -> ep1
     for f in factors:
         if shard_seq % f == 0:
             shard_seq //= f
@@ -46,7 +46,7 @@ def allocate_ep(parallel: ParallelScheme, bs: int, seq: int):
             shard_bs //= f
             ep1 *= f
         else:
-            # 该因子无法整除剩余的 shard_seq 或 shard_bs，跳过
+            # This factor divides neither the remaining shard_seq nor shard_bs; skip it
             continue
 
     log.info("allocate_ep -> target_ep=%s, ep1=%s, ep2=%s", target_ep, ep1, ep2)

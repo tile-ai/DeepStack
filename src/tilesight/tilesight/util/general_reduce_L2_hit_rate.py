@@ -6,7 +6,7 @@
 # # def general_reduce_l2_hitrate(N, F, H, W, C, KH, KW, S, D, P, tb_n, tb_f, tb_h, tb_w, c_rstep, L2_Cap, SM_Count, bytes_per_num):
 # def general_reduce_l2_hitrate(out_axis_mapping, out_tb_shape, spatial_grids, in1_tb_spatial_shape, in2_tb_spatial_shape, in1_tb_reduction_shape, in2_tb_reduction_shape,L2_Cap, SM_Count,bytes_per_num,mem_levels):
     
-#     # 可以考虑把mem_levels信息就在这里加入，使得hitrate计算更精准
+#     # Consider adding mem_levels information here for more accurate hitrate calculations
 #     # example:
 #     #     mem_levels = {
 #     #     'in1': '[1,1,1]', for ddr
@@ -22,13 +22,13 @@
 #     Bytes_per_cacheline = 128
 #     Num_Cachelines = L2_Cap / Bytes_per_cacheline / Num_Associative
 
-#     # 前提：每个所需要的数据不是很大,即每个的reduction_shape乘起来不大
+#     # Prerequisite: each required data item is small, i.e., the product of each reduction_shape is small
 
 #     # out_axis_mapping=[0,1,0,0]
-#     #     [0],  # 输出轴 'n' 来自 input1 的第 0 个轴，是空间轴
-#     #     [1],  # 输出轴 'f' 来自 input2 的第 0 个轴，是空间轴
-#     #     [0],  # 输出轴 'h' 来自 input1 的第 2 个轴，是空间轴
-#     #     [0]   # 输出轴 'w' 来自 input1 的第 3 个轴，是空间轴
+#     #     [0],  # Output axis 'n' comes from axis 0 of input1 and is a spatial axis
+#     #     [1],  # Output axis 'f' comes from axis 0 of input2 and is a spatial axis
+#     #     [0],  # Output axis 'h' comes from axis 2 of input1 and is a spatial axis
+#     #     [0]   # Output axis 'w' comes from axis 3 of input1 and is a spatial axis
 #     # ]
 
 #     # gridN = int(np.ceil(N / tb_n))
@@ -86,13 +86,13 @@
 #     # gcd2 = gcd(int(output_block_Num_Cachelines), int(Num_Cachelines))
 #     # gcd_all = gcd(gcd1, gcd2)
 
-#     #向下取整
+#     # Round down
 #     # Num_Cachelines //= gcd_all 
 #     # input_block_Num_Cachelines //= gcd_all
 #     # kernel_block_Num_Cachelines //= gcd_all
 #     # output_block_Num_Cachelines //= gcd_all
 
-#     #向上取整
+#     # Round up
 #     # Num_Cachelines = math.ceil(Num_Cachelines/gcd_all)
 #     # input_block_Num_Cachelines = math.ceil(input_block_Num_Cachelines/gcd_all)
 #     # kernel_block_Num_Cachelines = math.ceil(kernel_block_Num_Cachelines/gcd_all)
@@ -183,7 +183,7 @@ from .sdcm import sdcm
 # def general_reduce_l2_hitrate(N, F, H, W, C, KH, KW, S, D, P, tb_n, tb_f, tb_h, tb_w, c_rstep, L2_Cap, SM_Count, bytes_per_num):
 def general_reduce_l2_hitrate(out_axis_mapping, out_tb_shape, spatial_grids, in1_tb_spatial_shape, in2_tb_spatial_shape, in1_tb_reduction_shape, in2_tb_reduction_shape,L2_Cap, SM_Count,mem_levels):
     
-    # 可以考虑把mem_levels信息就在这里加入，使得hitrate计算更精准
+    # Consider adding mem_levels information here for more accurate hitrate calculations
     # example:
     #     mem_levels = {
     #     'in1': '[1,1,1]', for ddr
@@ -207,13 +207,13 @@ def general_reduce_l2_hitrate(out_axis_mapping, out_tb_shape, spatial_grids, in1
     Bytes_per_cacheline = 128
     Num_Cachelines = L2_Cap / Bytes_per_cacheline / Num_Associative
 
-    # 前提：每个所需要的数据不是很大,即每个的reduction_shape乘起来不大
+    # Prerequisite: each required data item is small, i.e., the product of each reduction_shape is small
 
     # out_axis_mapping=[0,1,0,0]
-    #     [0],  # 输出轴 'n' 来自 input1 的第 0 个轴，是空间轴
-    #     [1],  # 输出轴 'f' 来自 input2 的第 0 个轴，是空间轴
-    #     [0],  # 输出轴 'h' 来自 input1 的第 2 个轴，是空间轴
-    #     [0]   # 输出轴 'w' 来自 input1 的第 3 个轴，是空间轴
+    #     [0],  # Output axis 'n' comes from axis 0 of input1 and is a spatial axis
+    #     [1],  # Output axis 'f' comes from axis 0 of input2 and is a spatial axis
+    #     [0],  # Output axis 'h' comes from axis 2 of input1 and is a spatial axis
+    #     [0]   # Output axis 'w' comes from axis 3 of input1 and is a spatial axis
     # ]
 
     # gridN = int(np.ceil(N / tb_n))
@@ -276,13 +276,13 @@ def general_reduce_l2_hitrate(out_axis_mapping, out_tb_shape, spatial_grids, in1
         # gcd2 = gcd(int(output_block_Num_Cachelines), int(Num_Cachelines))
         # gcd_all = gcd(gcd1, gcd2)
 
-        #向下取整
+        # Round down
         # Num_Cachelines //= gcd_all 
         # input_block_Num_Cachelines //= gcd_all
         # kernel_block_Num_Cachelines //= gcd_all
         # output_block_Num_Cachelines //= gcd_all
 
-        #向上取整
+        # Round up
         # Num_Cachelines = math.ceil(Num_Cachelines/gcd_all)
         # input_block_Num_Cachelines = math.ceil(input_block_Num_Cachelines/gcd_all)
         # kernel_block_Num_Cachelines = math.ceil(kernel_block_Num_Cachelines/gcd_all)

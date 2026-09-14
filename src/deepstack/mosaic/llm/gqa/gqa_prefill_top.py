@@ -20,8 +20,8 @@ def get_gqa_prefill_footprint(bs:int, seq:int, cached_kv:int, hidden:int, num_he
     group_size = math.ceil (num_head/num_kv_head)
     wq_hidden = num_head * head_dim
 
-    # 其中x [bs/dp, seq/sp, hidden], Wq, [hidden, hidden/tp], Wk, Wv [hidden, hidden/g/tp], Wo [hidden/tp, hidden]
-    # Attention 中Q.sp * KV.cp == Global.sp 
+    # Here x [bs/dp, seq/sp, hidden], Wq [hidden, hidden/tp], Wk, Wv [hidden, hidden/g/tp], Wo [hidden/tp, hidden]
+    # In attention, Q.sp * KV.cp == Global.sp
 
     in_bytes, weight_bytes, out_bytes = atten_bytes.get_dtype_bytes()
 

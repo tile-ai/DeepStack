@@ -7,22 +7,23 @@ log = logging.getLogger(__name__)
 
 def resources_to_times(ddr_io, l2_io, smem_io, compute_flops, arch, data_bytes=2,
                        l1_5_io=0):
-    """将资源量转换为时间 (秒), 使用全系统带宽。
+    """Convert resource quantities to time in seconds using full-system bandwidth.
 
-    返回值是"在全系统带宽下完成该资源量所需时间"。
-    对于 per-SM 分析, 共享资源(DDR/L2)需乘以竞争 SM 数。
+    Each return value is the time required to process the corresponding quantity
+    at full-system bandwidth. For per-SM analysis, shared-resource times (DDR/L2)
+    must be multiplied by the number of contending SMs.
 
     Args:
-        ddr_io: DDR 流量 (bytes)
-        l2_io: L2 流量 (bytes)
-        smem_io: SMEM 读写 (bytes)
-        compute_flops: 计算量 (FLOPs)
-        arch: 架构对象
-        data_bytes: 数据类型字节数 (用于选择 tensor flops)
-        l1_5_io: L1.5 流量 (bytes), 0 if no L1.5
+        ddr_io: DDR traffic in bytes.
+        l2_io: L2 traffic in bytes.
+        smem_io: SMEM reads and writes in bytes.
+        compute_flops: Computation in FLOPs.
+        arch: Architecture object.
+        data_bytes: Data type size in bytes, used to select tensor FLOPS.
+        l1_5_io: L1.5 traffic in bytes; 0 if there is no L1.5 cache.
 
     Returns:
-        (ddr_time, l2_time, l1_5_time, smem_time, compute_time) 各单位为秒
+        (ddr_time, l2_time, l1_5_time, smem_time, compute_time), all in seconds.
     """
     ddr_time = ddr_io / arch.ddr_bandwidth if arch.ddr_bandwidth > 0 else 0.0
     l2_time = l2_io / arch.l2_bandwidth if arch.l2_bandwidth > 0 else 0.0
@@ -51,22 +52,24 @@ def resources_to_times(ddr_io, l2_io, smem_io, compute_flops, arch, data_bytes=2
 
 
 def _per_sm_iter_times(per_iter, arch, data_bytes, sm_count, active_sms=None):
-    """计算每迭代在 per-SM 带宽下的时间。
+    """Compute per-iteration times using per-SM bandwidth.
 
-    关键区分:
-    - DDR/L2: 全系统共享带宽, 由 active_sms 个 SM 平分
-    - SMEM/Compute: per-SM 独立资源, 始终除以 sm_count (因为 bandwidth 定义含 sm_count)
+    Resource distinction:
+    - DDR/L2: Full-system shared bandwidth, divided equally among active_sms SMs.
+    - SMEM/Compute: Independent per-SM resources; always divide bandwidth by
+      sm_count because the bandwidth definitions include sm_count.
 
     Args:
-        per_iter: PerIterationResources
-        arch: 架构对象
-        data_bytes: 数据类型字节数
-        sm_count: 架构总 SM 数 (用于 SMEM/Compute, 因为 arch bandwidth 包含了 sm_count)
-        active_sms: 实际活跃的 SM 数 (用于 DDR/L2 共享带宽分配),
-                    默认 None 表示 full wave = sm_count
+        per_iter: PerIterationResources.
+        arch: Architecture object.
+        data_bytes: Data type size in bytes.
+        sm_count: Total architecture SM count, used for SMEM/Compute because
+            architecture bandwidth includes sm_count.
+        active_sms: Actual number of active SMs, used to allocate shared DDR/L2
+            bandwidth. None defaults to a full wave, with active_sms = sm_count.
 
     Returns:
-        (mem_time_per_iter, comp_time_per_iter) — 已除以 max_util
+        (mem_time_per_iter, comp_time_per_iter), already divided by max_util.
     """
     if active_sms is None:
         active_sms = sm_count
@@ -76,21 +79,21 @@ def _per_sm_iter_times(per_iter, arch, data_bytes, sm_count, active_sms=None):
         arch, data_bytes, l1_5_io=per_iter.l1_5_io
     )
 
-    # DDR/L2: 共享带宽, 由 active_sms 个 SM 竞争
-    # per-SM 时间 = 全系统时间 * active_sms
+    # DDR/L2: shared bandwidth contested by active_sms SMs
+    # Per-SM time = full-system time * active_sms
     ddr_t *= active_sms
     l2_t *= active_sms
 
-    # L1.5: per-group 共享, bandwidth 定义是 whole chip
-    # 与 SMEM 类似, 需要 × sm_count
+    # L1.5: shared per group; bandwidth is defined for the whole chip
+    # Like SMEM, multiply by sm_count
     l1_5_t *= sm_count
 
-    # SMEM/Compute: per-SM 资源, 但 arch.smem_bandwidth 和 flops 是全系统总和
-    # per-SM 时间 = 全系统时间 * sm_count
+    # SMEM/Compute: per-SM resources, but arch.smem_bandwidth and flops are full-system totals
+    # Per-SM time = full-system time * sm_count
     smem_t *= sm_count
     comp_t *= sm_count
 
-    # 各 mem 层之间可 overlap (取 max), 再除以 max_util
+    # Memory levels can overlap (take max), then divide by max_util
     l1_5_max_util = getattr(arch, 'l1_5_max_util', arch.l1_max_util)
     mem_time = max(ddr_t / arch.ddr_max_util,
                    l2_t / arch.l2_max_util,
@@ -102,7 +105,7 @@ def _per_sm_iter_times(per_iter, arch, data_bytes, sm_count, active_sms=None):
 
 
 def _per_sm_store_time(pe, arch, data_bytes, sm_count, active_sms=None):
-    """计算 store (epilogue 写回) 在 per-SM 带宽下的时间。"""
+    """Compute store time (epilogue writeback) using per-SM bandwidth."""
     if active_sms is None:
         active_sms = sm_count
 
@@ -110,7 +113,7 @@ def _per_sm_store_time(pe, arch, data_bytes, sm_count, active_sms=None):
         pe.store_ddr_io, pe.store_l2_io, pe.store_smem_io, 0,
         arch, data_bytes, l1_5_io=pe.store_l1_5_io
     )
-    # DDR/L2 共享, L1.5/SMEM per-SM
+    # DDR/L2 are shared; L1.5/SMEM are per-SM
     store_ddr_t *= active_sms
     store_l2_t *= active_sms
     store_l1_5_t *= sm_count
@@ -126,25 +129,25 @@ def _per_sm_store_time(pe, arch, data_bytes, sm_count, active_sms=None):
 
 def compute_pipeline_tile_latency(tile_res, arch, data_bytes=2,
                                   sm_count=None, active_sms=None):
-    """计算单个 tile 的 pipeline-aware latency。
+    """Compute pipeline-aware latency for a single tile.
 
-    使用 per-SM 带宽模型:
-    - DDR/L2 (共享): 每个 SM 分到 系统带宽 / active_sms
-    - SMEM/Compute (per-SM): 每个 SM 独立拥有 系统带宽 / sm_count
+    Use a per-SM bandwidth model:
+    - DDR/L2 (shared): Each SM receives system bandwidth / active_sms.
+    - SMEM/Compute (per-SM): Each SM independently has system bandwidth / sm_count.
 
-    当 total_tiles < sm_count 时, active_sms < sm_count,
-    每个活跃 SM 分到更多的 DDR/L2 带宽。
+    When total_tiles < sm_count, active_sms < sm_count, giving each active SM
+    more DDR/L2 bandwidth.
 
-    根据 stage_num 分情况：
-    - stage_num=1: 无 pipeline，每迭代内 load 与 compute 串行
-    - stage_num>=2: 有 pipeline，prologue + steady(overlap) + epilogue
+    Behavior by stage_num:
+    - stage_num=1: No pipelining; load and compute execute serially within each iteration.
+    - stage_num>=2: Pipelining with prologue + steady state (overlap) + epilogue.
 
     Args:
-        tile_res: TileResources
-        arch: 架构对象
-        data_bytes: 数据类型字节数
-        sm_count: 架构 SM 总数 (默认 arch.sm_count)
-        active_sms: 实际活跃 SM 数 (默认 = sm_count, 即 full wave)
+        tile_res: TileResources.
+        arch: Architecture object.
+        data_bytes: Data type size in bytes.
+        sm_count: Total architecture SM count; defaults to arch.sm_count.
+        active_sms: Actual active SM count; defaults to sm_count (a full wave).
 
     Returns:
         (per_tile_latency, PipelineDetail)
@@ -164,8 +167,8 @@ def compute_pipeline_tile_latency(tile_res, arch, data_bytes=2,
     store_time = _per_sm_store_time(pe, arch, data_bytes, sm_count, active_sms)
 
     if stage_num <= 1:
-        # ===== Case 1: 无软件流水线 =====
-        # 每迭代 load 与 compute 串行
+        # ===== Case 1: No software pipeline =====
+        # Load and compute execute serially in each iteration
         per_iter_time = mem_time_per_iter + comp_time_per_iter
         per_tile_latency = num_iters * per_iter_time + store_time
 
@@ -177,7 +180,7 @@ def compute_pipeline_tile_latency(tile_res, arch, data_bytes=2,
             compute_time_per_iter=comp_time_per_iter,
         )
     else:
-        # ===== Case 2: 有软件流水线 (stage_num >= 2) =====
+        # ===== Case 2: Software pipeline enabled (stage_num >= 2) =====
         pipeline_depth = stage_num - 1
 
         prologue_time = pipeline_depth * mem_time_per_iter
@@ -207,18 +210,19 @@ def compute_pipeline_tile_latency(tile_res, arch, data_bytes=2,
 def compute_pipeline_tile_latency_with_occupancy(tile_res, tiles_per_sm, arch,
                                                  data_bytes=2, sm_count=None,
                                                  active_sms=None):
-    """考虑 SM 上多 tile 交织的 pipeline latency。
+    """Compute pipeline latency with multiple tiles interleaved on an SM.
 
-    当 tiles_per_sm > 1 时，多个 tile 在同一 SM 上交替执行。
-    等效 pipeline depth = stage_num * tiles_per_sm (算法中的 stage 累乘)。
+    When tiles_per_sm > 1, multiple tiles alternate execution on the same SM.
+    Effective pipeline depth = stage_num * tiles_per_sm, corresponding to
+    multiplication of stage counts in the algorithm.
 
     Args:
-        tile_res: TileResources
-        tiles_per_sm: occupancy (tiles per SM)
-        arch: 架构对象
-        data_bytes: 数据类型字节数
-        sm_count: 架构 SM 总数 (默认 arch.sm_count)
-        active_sms: 实际活跃 SM 数 (默认 = sm_count)
+        tile_res: TileResources.
+        tiles_per_sm: Occupancy, in tiles per SM.
+        arch: Architecture object.
+        data_bytes: Data type size in bytes.
+        sm_count: Total architecture SM count; defaults to arch.sm_count.
+        active_sms: Actual active SM count; defaults to sm_count.
 
     Returns:
         (sm_latency, PipelineDetail)
@@ -233,7 +237,7 @@ def compute_pipeline_tile_latency_with_occupancy(tile_res, tiles_per_sm, arch,
             tile_res, arch, data_bytes, sm_count=sm_count, active_sms=active_sms)
         return per_tile_lat, detail
 
-    # tiles_per_sm > 1: 多 tile 交织
+    # tiles_per_sm > 1: interleave multiple tiles
     per_iter = tile_res.per_iter
     pe = tile_res.prologue_epilogue
     stage_num = tile_res.stage_num
@@ -243,7 +247,7 @@ def compute_pipeline_tile_latency_with_occupancy(tile_res, tiles_per_sm, arch,
         per_iter, arch, data_bytes, sm_count, active_sms)
     store_time = _per_sm_store_time(pe, arch, data_bytes, sm_count, active_sms)
 
-    # 等效 pipeline depth
+    # Effective pipeline depth
     effective_stage = stage_num * tiles_per_sm
     effective_pipeline_depth = effective_stage - 1
     total_iters = num_iters * tiles_per_sm

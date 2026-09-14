@@ -6,11 +6,11 @@ log = logging.getLogger(__name__)
 
 def find_min_multiple(x, wave_bytes):
 
-    # 计算 x 除以 wave_bytes 的结果
+    # Compute x divided by wave_bytes
     division_result = x / wave_bytes
-    # 找到大于等于 division_result 的最小整数
+    # Find the smallest integer greater than or equal to division_result
     min_multiple = math.ceil(division_result)
-    # 返回 wave_bytes 乘以这个最小整数
+    # Return wave_bytes multiplied by this smallest integer
     return min_multiple * wave_bytes
 
 

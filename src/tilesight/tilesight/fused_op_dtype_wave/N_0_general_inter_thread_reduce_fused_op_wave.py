@@ -1,4 +1,4 @@
-# 文件名: N_1_element_wise_op.py
+# Filename: N_1_element_wise_op.py
 import numpy as np
 import math
 from ..util import *
@@ -22,17 +22,17 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
     # reduction_shape=[1024,3,3]
         
     # out_axis_mapping=[0,1,0,0]
-    #     [0],  # 输出轴 'n' 来自 input1 的第 0 个轴，是空间轴
-    #     [1],  # 输出轴 'f' 来自 input2 的第 0 个轴，是空间轴
-    #     [0],  # 输出轴 'h' 来自 input1 的第 2 个轴，是空间轴
-    #     [0]   # 输出轴 'w' 来自 input1 的第 3 个轴，是空间轴
+    #     [0],  # Output axis 'n' comes from axis 0 of input1 and is a spatial axis
+    #     [1],  # Output axis 'f' comes from axis 0 of input2 and is a spatial axis
+    #     [0],  # Output axis 'h' comes from axis 2 of input1 and is a spatial axis
+    #     [0]   # Output axis 'w' comes from axis 3 of input1 and is a spatial axis
     # ]
 
     # reduction_axis_mapping=
     # [
-    #     [2, 8],  # 规约轴的第一个'c' 是公共归约轴，current_step是8
-    #     [1, 3],  # 规约轴的第二个'kh' 是input2的私有归约轴，current_step是3
-    #     [1, 3],  # 规约轴的第三个'kw' 是input2的私有规约轴，current_step是3
+    #     [2, 8],  # The first reduction axis, 'c', is shared; current_step is 8
+    #     [1, 3],  # The second reduction axis, 'kh', is private to input2; current_step is 3
+    #     [1, 3],  # The third reduction axis, 'kw', is private to input2; current_step is 3
     # ]
 
     DDR_non_ideal_para=1.0 #Unmerged fragmented accesses will be scaled to sector (32bytes) as the smallest unit
@@ -59,7 +59,7 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
 
     out1_level = mem_levels['out1']
 
-    # 初始化输入tensor block的大小
+    # Initialize input tensor block sizes
     in1_tb_spatial_shape = []
 
 
@@ -78,9 +78,9 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
     in1_thread_shape=[]
 
 
-        # 处理输出轴
+        # Process output axes
     for i, dim_size in enumerate(out_tb_shape):
-        input_index = out_axis_mapping[i]  # 确定是input1还是input2
+        input_index = out_axis_mapping[i]  # Determine whether this is input1 or input2
         if input_index == 0:
             in1_tb_spatial_shape.append(dim_size)
             in1_thread_shape.append(out_thread_shape[i])
@@ -91,7 +91,7 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
 
     
 
-    # 处理归约轴
+    # Process reduction axes
     for i, dim_size in enumerate(reduction_shape):
         input_index, current_step = reduction_axis_mapping[i]
         reduction_grids.append(math.ceil(dim_size/current_step))
@@ -99,13 +99,13 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
 
 
 
-        if input_index == 1:  # input2的私有归约轴
+        if input_index == 1:  # Reduction axis private to input2
 
             in1_tb_spatial_shape[in1_tb_spatial_index]+=current_step-1 # e.g. kh=3, pad_h+=2
             in1_tb_spatial_index-=1
 
         
-        elif input_index == 0:  # input1的私有归约轴
+        elif input_index == 0:  # Reduction axis private to input1
             in1_tb_reduction_shape.append(dim_size)
             in1_tb_current_step_shape.append(current_step)
 
@@ -131,7 +131,7 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
     # '''
     # elapsed_time = timeit.timeit(test_code, globals=globals(), number=100)
 
-    # # 计算平均时间
+    # # Compute the average time
     # average_time = elapsed_time / 100
     # print(f"Average execution time: {average_time} seconds")
     # # Average execution time: 0.19484585613012315 seconds
@@ -186,14 +186,14 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
     smem_l1_io+=in1_level[-1]*np.prod(spatial_grids)*np.prod(reduction_grids)*(
         np.prod(in1_tb_spatial_shape)*np.prod(in1_tb_current_step_shape)*in1_level[0])
         
-    # 接下来开始考虑一个rstep被切开的事情
-    # 唯一的不同是多了reduce_threads_info
-    # 这个放在哪里呢？应该放在一个归约轴上
-    # 要从rstep某一条轴的最里面塞
+    # Next, consider splitting an rstep
+    # The only difference is the additional reduce_threads_info
+    # Where should this go? It should go on a reduction axis
+    # Insert it at the innermost position of one rstep axis
     
     # reduce_threads_info=[0,2] 
     # reduce thread at reduce axis 0, reduce thread is 2
-    # 对应reduction_shape以及reduction_threads的维度都要除以reduce_threads_info
+    # Divide the corresponding dimensions of both reduction_shape and reduction_threads by reduce_threads_info
     # reduction_axis_mapping[reduce_threads_info[0],1]=math.ceil(reduction_axis_mapping[reduce_threads_info[0],1]/reduce_threads_info[1])
     # reduction_shape[reduce_threads_info[0]]=math.ceil(reduction_shape[reduce_threads_info[0]]/reduce_threads_info[1])
     # ----------------------------------------------------------------------------------------------
@@ -219,10 +219,10 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
             last_step=reduction_step.pop()
             if(last_row[0]==2):
                 in1_thread_shape.insert(0,last_step)
-            elif(last_row[0]==1):#input2 的归约轴
+            elif(last_row[0]==1):# Reduction axis of input2
                 in1_thread_shape[-1-j]+=last_step-1
                 j+=1
-            elif(last_row[0]==0):#input1 的归约轴
+            elif(last_row[0]==0):# Reduction axis of input1
                 in1_thread_shape.insert(0,last_step)
                 j+=1
         reg_footprint=np.prod(out_thread_shape)*out1_level[-1]/4+np.prod(in1_thread_shape*in1_level[1])*in1_level[-1]/4+len(reduction_shape)+2
@@ -239,9 +239,9 @@ def calculate_N_0_general_ruduce_inter_thread_resource_utilization(out_shape,red
     
     
 
-    # 在tb的最后，需要进行归约
-    # 归约是一个无论如何都单独的stage，前后、中间都插入很多的sync
-    # 或许其实可以考虑一下sync的代价？
+    # A reduction is needed at the end of the tb
+    # Reduction always forms a separate stage, with many syncs before, after, and within it
+    # Perhaps the cost of syncs should also be considered?
     if(reduce_threads_info[1]>32):
         smem_footprint+=128*out1_level[-1]*np.prod(out_thread_shape)
         # smem_l1_io+=np.prod(spatial_grids)*bytes_per_num

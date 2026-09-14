@@ -17,7 +17,6 @@ from ae.doctor import (
     NOC_PROFILE_API_VERSION,
     PROPRIETARY_BINARY_LICENSE_ID,
     check_noc_profile_provider,
-    check_tilesight_noc_profile_provider,
 )
 from ae.paths import DEEPSTACK_SRC, activate_vendored_sources
 
@@ -133,28 +132,21 @@ def test_doctor_accepts_bundled_binary_provider(
 ) -> None:
     failures: list[str] = []
     path = check_noc_profile_provider(failures)
-    tilesight_path = check_tilesight_noc_profile_provider(failures)
     assert failures == []
     assert path is not None
-    assert tilesight_path is not None
     assert any(
         path.name.endswith(suffix)
-        for suffix in importlib.machinery.EXTENSION_SUFFIXES
-    )
-    assert any(
-        tilesight_path.name.endswith(suffix)
         for suffix in importlib.machinery.EXTENSION_SUFFIXES
     )
 
     assert doctor() == 0
     output = capsys.readouterr()
     assert "noc_energy_profile_provider=binary" in output.out
-    assert "tilesight_noc_profile_provider=binary" in output.out
     assert "noc_api=1" in output.out
     assert "energy_api=1" in output.out
     assert (
         f"binary_license={PROPRIETARY_BINARY_LICENSE_ID} "
-        "(4/4 sidecars)"
+        "(3/3 sidecars)"
     ) in output.out
     assert "hop_latency" not in output.out
     assert "link_bandwidth" not in output.out
@@ -190,7 +182,6 @@ def test_binary_provider_exposes_energy_calculation_interfaces() -> None:
     "module_name",
     (
         "mosaic.noc.noc_config_set",
-        "tilesight.distributed.noc.noc_config_set",
     ),
 )
 def test_reference_profile_repr_is_structural_only(module_name: str) -> None:

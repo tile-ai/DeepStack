@@ -10,9 +10,9 @@ from .dsa_prefill_coarse import dsa_mla_prefill_coarse
 
 log = logging.getLogger(__name__)
 
-# DeepSeek-V3.2 / GLM-5.1 等 DSA (DeepSeek Sparse Attention) 模型的 attention block 入口,
-# 接口与 mla_decode_top / mla_prefill_top 对齐。
-# 适用于 model_arch.mla_arch 和 model_arch.dsa_arch 都不为 None 的模型。
+# Attention-block entry point for DSA (DeepSeek Sparse Attention) models such as DeepSeek-V3.2 / GLM-5.1,
+# with an interface matching mla_decode_top / mla_prefill_top.
+# Applies to models where both model_arch.mla_arch and model_arch.dsa_arch are not None.
 
 
 def dsa_mla_decode_top(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme,

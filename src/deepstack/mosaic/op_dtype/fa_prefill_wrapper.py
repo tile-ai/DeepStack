@@ -89,7 +89,7 @@ def fa_prefill_wrapper(bs:int, seq:int, hidden:int, num_head:int, num_kv_head:in
     mode=granularity.get_mode()
     tune_flag=granularity.get_auto_tune()
 
-    # 在 GQA 里, g = K/V head 数，而 group size = Q head 数 ÷ K/V head 数。
+    # In GQA, g = number of K/V heads, while group size = number of Q heads / number of K/V heads.
     group_size = math.ceil (num_head/num_kv_head)
 
     wq_hidden = num_head * head_dim

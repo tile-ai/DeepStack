@@ -1,9 +1,10 @@
 """Pipeline-aware element-wise operation performance model.
 
-Element-wise ops 通常 stage_num=1（无内层循环），pipeline 退化为 roofline。
-主要改进来自 wave head/tail + occupancy 分析。
+Element-wise operations typically use stage_num=1 (no inner loop), reducing
+the pipeline model to a roofline model. The main improvements come from
+wave head/tail and occupancy analysis.
 
-包含 N_0, N_1, N_N 三种变体。
+Includes N_0, N_1, and N_N variants.
 """
 import numpy as np
 import math
@@ -36,7 +37,7 @@ def _apply_wave_bytes_correction(io_val, arch):
 
 
 def _compute_thread_overhead(thread_per_tb):
-    """计算线程数不足导致的计算开销。"""
+    """Compute the overhead caused by insufficient threads."""
     if thread_per_tb <= 32:
         return 32 / thread_per_tb
     elif thread_per_tb <= 128:
@@ -50,14 +51,14 @@ def _compute_thread_overhead(thread_per_tb):
 
 
 def _build_result(tile_res, tiles_per_sm, arch, l2_hit_rate, data_bytes=4):
-    """从 TileResources 构建 PipelineResult 的通用流程。"""
+    """Common procedure for building a PipelineResult from TileResources."""
     # Pipeline latency
     sm_latency, pipeline_detail = compute_pipeline_tile_latency_with_occupancy(
         tile_res, tiles_per_sm, arch, data_bytes=data_bytes)
     per_tile_latency, _ = compute_pipeline_tile_latency(
         tile_res, arch, data_bytes=data_bytes)
 
-    # Wave adjustment (传入 tile_res 以便 tail wave 精确重算 active_sms 带宽)
+    # Wave adjustment (pass tile_res to accurately recalculate active_sms bandwidth for the tail wave)
     total_tiles = int(np.prod(tile_res.grids))
     total_latency, wave_info = compute_wave_adjusted_latency(
         sm_latency, tiles_per_sm, total_tiles, arch,
@@ -77,19 +78,19 @@ def _build_result(tile_res, tiles_per_sm, arch, l2_hit_rate, data_bytes=4):
 
 
 # =====================================================================
-# N_0 Element-wise: 单输入单输出, 形状不变
+# N_0 Element-wise: single input, single output, unchanged shape
 # =====================================================================
 def calculate_N_0_elementwise_pipeline_wave(op_shape, tb_shape, dim_threads,
                                             arch, mem_levels, num_ops=1):
     """N_0 element-wise pipeline-aware model.
 
     Args:
-        op_shape: 操作形状 (多维)
-        tb_shape: thread block tile 形状
-        dim_threads: 各维度线程数
-        arch: 架构对象
+        op_shape: Multidimensional operation shape.
+        tb_shape: Thread-block tile shape.
+        dim_threads: Thread count along each dimension.
+        arch: Architecture object.
         mem_levels: {'in1': [...], 'out1': [...]}
-        num_ops: fused 操作数
+        num_ops: Number of fused operations.
 
     Returns:
         PipelineResult
@@ -107,7 +108,7 @@ def calculate_N_0_elementwise_pipeline_wave(op_shape, tb_shape, dim_threads,
 
     l2_hit_rate = 0
 
-    # ---- IO 计算 ----
+    # ---- IO calculation ----
     total_elements = np.prod(op_shape)
     l2_read_io = total_elements * in1_level[0] * in1_level[-1]
     l2_store_io = total_elements * out1_level[-1] * out1_level[0]
@@ -166,7 +167,7 @@ def calculate_N_0_elementwise_pipeline_wave(op_shape, tb_shape, dim_threads,
 
 
 # =====================================================================
-# N_1 Element-wise: 两输入 (broadcast), 单输出
+# N_1 Element-wise: two inputs (broadcast), single output
 # =====================================================================
 def calculate_N_1_elementwise_pipeline_wave(in1_shape, in2_shape, in1_tb_shape,
                                             dim_threads, arch, mem_levels,
@@ -174,13 +175,13 @@ def calculate_N_1_elementwise_pipeline_wave(in1_shape, in2_shape, in1_tb_shape,
     """N_1 element-wise pipeline-aware model.
 
     Args:
-        in1_shape: 输入1 形状 (大 tensor)
-        in2_shape: 输入2 形状 (broadcast tensor)
-        in1_tb_shape: 输入1 的 tile 形状
-        dim_threads: 各维度线程数
-        arch: 架构对象
+        in1_shape: Shape of input 1 (large tensor).
+        in2_shape: Shape of input 2 (broadcast tensor).
+        in1_tb_shape: Tile shape for input 1.
+        dim_threads: Thread count along each dimension.
+        arch: Architecture object.
         mem_levels: {'in1': [...], 'in2': [...], 'out1': [...]}
-        num_ops: fused 操作数
+        num_ops: Number of fused operations.
 
     Returns:
         PipelineResult
@@ -202,7 +203,7 @@ def calculate_N_1_elementwise_pipeline_wave(in1_shape, in2_shape, in1_tb_shape,
     in2_level = mem_levels['in2']
     out1_level = mem_levels['out1']
 
-    # ---- IO 计算 ----
+    # ---- IO calculation ----
     l2_read_io = (np.prod(in1_shape) * in1_level[0] * in1_level[-1]
                   + np.prod(grids) * np.prod(in2_tb_shape) * in2_level[0] * in2_level[-1])
     l2_store_io = np.prod(in1_shape) * out1_level[-1] * out1_level[0]
@@ -268,19 +269,19 @@ def calculate_N_1_elementwise_pipeline_wave(in1_shape, in2_shape, in1_tb_shape,
 
 
 # =====================================================================
-# N_N Element-wise: 两输入同形状, 单输出
+# N_N Element-wise: two inputs of the same shape, single output
 # =====================================================================
 def calculate_N_N_elementwise_pipeline_wave(op_shape, tb_shape, dim_threads,
                                             arch, mem_levels, num_ops=1):
     """N_N element-wise pipeline-aware model.
 
     Args:
-        op_shape: 操作形状
-        tb_shape: thread block tile 形状
-        dim_threads: 各维度线程数
-        arch: 架构对象
+        op_shape: Operation shape.
+        tb_shape: Thread-block tile shape.
+        dim_threads: Thread count along each dimension.
+        arch: Architecture object.
         mem_levels: {'in1': [...], 'in2': [...], 'out1': [...]}
-        num_ops: fused 操作数
+        num_ops: Number of fused operations.
 
     Returns:
         PipelineResult

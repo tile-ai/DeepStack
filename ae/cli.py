@@ -17,7 +17,6 @@ from .doctor import (
     check_binary_license_sidecar,
     check_arch_reference_provider,
     check_noc_profile_provider,
-    check_tilesight_noc_profile_provider,
 )
 from .paths import RESULTS_DIR, ROOT, activate_vendored_sources
 
@@ -82,7 +81,6 @@ def doctor() -> int:
                 )
 
     noc_profile_path = check_noc_profile_provider(failures)
-    tilesight_noc_profile_path = check_tilesight_noc_profile_provider(failures)
     arch_profile_path = check_arch_reference_provider(failures)
     binary_paths = tuple(
         path
@@ -90,7 +88,6 @@ def doctor() -> int:
             capacity_path,
             arch_profile_path,
             noc_profile_path,
-            tilesight_noc_profile_path,
         )
         if path is not None
     )
@@ -137,11 +134,6 @@ def doctor() -> int:
             "noc_energy_profile_provider=binary "
             f"({noc_profile_path.name}, noc_api={NOC_PROFILE_API_VERSION}, "
             f"energy_api={ENERGY_PROFILE_API_VERSION})"
-        )
-    if tilesight_noc_profile_path is not None:
-        print(
-            "tilesight_noc_profile_provider=binary "
-            f"({tilesight_noc_profile_path.name})"
         )
     if arch_profile_path is not None:
         print(

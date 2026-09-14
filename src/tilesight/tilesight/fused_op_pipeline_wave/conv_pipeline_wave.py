@@ -1,9 +1,9 @@
 """Pipeline-aware convolution performance models.
 
-包含三种 conv:
-- conv_implicit_gemm: 将 conv 映射为 GEMM (基础版)
-- conv_implicit_gemm_sdp: 同上 + stride/dilation/padding
-- conv_nchw: NCHW layout, 4D spatial grid, 非 GEMM 映射
+Includes three convolution variants:
+- conv_implicit_gemm: Map convolution to GEMM (base version).
+- conv_implicit_gemm_sdp: The same mapping with stride/dilation/padding.
+- conv_nchw: NCHW layout with a 4D spatial grid, without mapping to GEMM.
 """
 from ..util import *
 import numpy as np
@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 
 def _warp_overhead(active_warp_per_tb):
-    """conv implicit gemm 的 warp overhead 计算。"""
+    """Compute warp overhead for implicit GEMM convolution."""
     if active_warp_per_tb <= 4:
         return 4 / active_warp_per_tb
     elif active_warp_per_tb <= 8:
@@ -40,7 +40,7 @@ def _warp_overhead(active_warp_per_tb):
 
 
 def _thread_overhead(thread_per_tb):
-    """element-wise / reduce 的 thread overhead 计算。"""
+    """Compute thread overhead for element-wise and reduction operations."""
     if thread_per_tb <= 32:
         return 32 / thread_per_tb
     elif thread_per_tb <= 128:
@@ -55,7 +55,7 @@ def _thread_overhead(thread_per_tb):
 
 def _build_conv_result(tile_res, tiles_per_sm, arch, l2_hit_rate,
                        total_compute, total_ddr, batch, data_bytes):
-    """Conv 通用结果构建。"""
+    """Build a convolution result using the common procedure."""
     sm_latency, pipeline_detail = compute_pipeline_tile_latency_with_occupancy(
         tile_res, tiles_per_sm, arch, data_bytes=data_bytes)
 
@@ -87,15 +87,15 @@ def _build_conv_result(tile_res, tiles_per_sm, arch, l2_hit_rate,
 
 
 # =====================================================================
-# Conv Implicit GEMM (基础版)
+# Conv Implicit GEMM (base version)
 # =====================================================================
 def calculate_conv_implicit_gemm_pipeline_wave(
         op_shape, tb_shape, wp_shape, bytes_per_num, stage_num, arch,
         mem_levels, batch=1):
     """Conv implicit GEMM pipeline-aware model.
 
-    对应 fused_op_dtype/conv_implicit_gemm_fused_op.py。
-    将 conv 映射为 m=N*H*W, n=F, k=KH*KW*C 的 GEMM。
+    Corresponds to fused_op_dtype/conv_implicit_gemm_fused_op.py.
+    Map convolution to GEMM with m=N*H*W, n=F, k=KH*KW*C.
     """
     conv_n, conv_f, conv_h, conv_w, conv_c, conv_kh, conv_kw = op_shape
     tb_m, tb_n, tb_k = tb_shape
@@ -203,11 +203,12 @@ def calculate_conv_implicit_gemm_sdp_pipeline_wave(
         mem_levels, stride=1, dialation=1, padding=0, batch=1):
     """Conv implicit GEMM with stride/dilation/padding.
 
-    对应 fused_op_dtype/conv_implicit_gemm_sdp_fused_op.py。
-    结构与基础版 identical, stride/dilation/padding 目前仅影响 op shape 映射。
+    Corresponds to fused_op_dtype/conv_implicit_gemm_sdp_fused_op.py.
+    The structure is identical to the base version; stride/dilation/padding
+    currently affect only the operation shape mapping.
     """
-    # SDP 版本与基础版在资源计算上完全一致
-    # (stride/dilation/padding 影响的是 op_shape → GEMM 的映射, 已在 op_shape 中体现)
+    # The SDP version uses exactly the same resource calculations as the base version
+    # (stride/dilation/padding affect the op_shape -> GEMM mapping and are already reflected in op_shape)
     return calculate_conv_implicit_gemm_pipeline_wave(
         op_shape, tb_shape, wp_shape, bytes_per_num, stage_num, arch,
         mem_levels, batch=batch)
@@ -221,8 +222,8 @@ def calculate_conv_nchw_pipeline_wave(
         mem_levels, stage_num=1, batch=1):
     """Conv NCHW layout pipeline-aware model.
 
-    对应 fused_op_dtype/conv_nchw_fused_op.py。
-    4D spatial grid, 有 c_iter 内层循环。
+    Corresponds to fused_op_dtype/conv_nchw_fused_op.py.
+    Uses a 4D spatial grid with an inner c_iter loop.
     """
     conv_n, conv_f, conv_h, conv_w, conv_c, conv_kh, conv_kw, conv_s, conv_d, conv_p = op_shape
     tb_n, tb_f, tb_h, tb_w = tb_shape
@@ -267,8 +268,8 @@ def calculate_conv_nchw_pipeline_wave(
     total_spatial_tiles = gridN * gridF * gridH * gridW
 
     # Reduction loop: c_iter iterations (over channels)
-    # 每次 c_iter 内还有 kh*kw 的内层, 总 reduction iters = c_iter
-    # (kh_step, kw_step 在每次 c_iter 内完成)
+    # Each c_iter also contains kh*kw inner iterations; total reduction iters = c_iter
+    # (kh_step, kw_step are completed within each c_iter)
     num_reduction_iters = c_iter
 
     # Total IO

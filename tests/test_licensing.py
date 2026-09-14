@@ -14,7 +14,6 @@ BINARY_GLOBS = (
     "src/deepstack/mosaic/arch/_reference_model*.so",
     "src/deepstack/mosaic/cost/_capacity*.so",
     "src/deepstack/mosaic/noc/_model_support*.so",
-    "src/tilesight/tilesight/distributed/noc/_model_support*.so",
 )
 
 

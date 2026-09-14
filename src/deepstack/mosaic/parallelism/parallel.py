@@ -9,10 +9,10 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class GlobalParallel:
-    dp: int = 1            # Data Parallel（批次维切，全局）
-    pp: int = 1            # Pipeline Parallel（层级切，全局）
-    fsdp: bool = False     # FSDP 是 DP 的可选特性（是否在 DP 内做完全分片）
-    # 注：tp/cp/sp/ep 不再是全局配置，而是 per-op 的搜索域
+    dp: int = 1            # Data Parallel (shard the batch dimension, global)
+    pp: int = 1            # Pipeline Parallel (partition layers, global)
+    fsdp: bool = False     # FSDP is an optional DP feature (whether to apply full sharding within DP)
+    # Note: tp/cp/sp/ep are now per-op search domains, not global configuration
 
     def world_size(self) -> int:
         return self.dp * self.pp
@@ -43,7 +43,7 @@ class ParallelScheme:
     # return f"tp={self.tp}, ep={self.ep}, sp={self.sp}, cp={self.cp}, dp={self.dp}, fsdp={self.fsdp}, pp={self.pp}"
 
     def __post_init__(self) -> None:
-        # ep1*ep2 也可以小于ep，因为有时候shard_seq*shard_bs < ep,会可以少duplicate 一些
+        # ep1*ep2 may also be less than ep, since sometimes shard_seq*shard_bs < ep, allowing less duplication
 
         if self.ep1 is not None or self.ep2 is not None:
             part1 = self.ep1 if self.ep1 is not None else 1
@@ -64,7 +64,7 @@ class ParallelScheme:
         return {"dp": self.dp, "pp": self.pp, "fsdp": self.fsdp, "tp": self.tp, "cp": self.cp, "sp": self.sp, "ep": self.ep}
 
     def equal(self, other: "ParallelScheme") -> bool:
-        # 忽略 fsdp，仅比较其余并行维度是否一致
+        # Ignore fsdp and compare only the other parallelism dimensions
         if not isinstance(other, ParallelScheme):
             return False
         return (
@@ -78,7 +78,7 @@ class ParallelScheme:
         )
 
     def strong_equal(self, other: "ParallelScheme") -> bool:
-        # 强相等：包含 fsdp 在内的所有维度都需要一致
+        # Strict equality: all dimensions, including fsdp, must match
         if not isinstance(other, ParallelScheme):
             return False
         return (
@@ -92,13 +92,13 @@ class ParallelScheme:
         )
 
     def __eq__(self, other: object) -> bool:
-        # 使得 a == b 忽略 fsdp，仅比较其余维度
+        # Make a == b ignore fsdp and compare only the other dimensions
         if not isinstance(other, ParallelScheme):
             return False
         return self.equal(other)
 
     def __str__(self) -> str:
-        # 自定义打印顺序：tp, ep, sp, cp, dp, pp, fsdp
+        # Custom display order: tp, ep, sp, cp, dp, pp, fsdp
         # return f"tp={self.tp}, ep={self.ep}, sp={self.sp}, cp={self.cp}, dp={self.dp}, fsdp={self.fsdp}, pp={self.pp}"
         if self.ep1 is not None and self.ep2 is not None:
             return f"tp={self.tp}, ep={self.ep}, ep1={self.ep1}, ep2={self.ep2}, sp={self.sp}, cp={self.cp}, dp={self.dp}, fsdp={self.fsdp}, pp={self.pp}"
@@ -109,5 +109,5 @@ class ParallelScheme:
         return self.__str__()
 
     def __hash__(self) -> int:
-        # 与 __eq__ 一致：忽略 fsdp，仅比较/哈希以下维度
+        # Consistent with __eq__: ignore fsdp and compare/hash only the following dimensions
         return hash((self.dp, self.pp, self.tp, self.cp, self.sp, self.ep, self.fsdp))

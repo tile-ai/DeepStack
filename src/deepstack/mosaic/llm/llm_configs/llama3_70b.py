@@ -9,8 +9,8 @@ from .llm_config import (
 
 
 def build_llama_3_3_70b_spec() -> LLMModelSpec:
-    """直接构建 Llama 3.3-70B 规范对象（不依赖 JSON 文件）。"""
-    # 来自 Llama-3.3-70B-Instruct.config.json 的关键参数
+    """Construct a Llama 3.3-70B specification directly, without a JSON file."""
+    # Key parameters from Llama-3.3-70B-Instruct.config.json
     hidden_size = 8192
     num_layers = 80
     num_heads = 64
@@ -33,7 +33,7 @@ def build_llama_3_3_70b_spec() -> LLMModelSpec:
         original_max_position_embeddings=8192,
     )
 
-    # Llama 使用 GQA 注意力 + Dense FFN
+    # Llama uses GQA attention + Dense FFN
     attn = make_gqa_attention(
         num_heads=num_heads,
         num_kv_heads=num_kv_heads,
@@ -43,7 +43,7 @@ def build_llama_3_3_70b_spec() -> LLMModelSpec:
         qkv_bias=None,
     )
     dense = make_dense_ffn(intermediate_size=inter_size, activation=activation)
-    moe = MoEConfig()  # 不使用 MoE
+    moe = MoEConfig()  # MoE is not used
 
     spec = LLMModelSpec(
         arch_name="llama-3.3-70b",
@@ -72,7 +72,7 @@ def build_llama_3_3_70b_spec() -> LLMModelSpec:
         },
     )
 
-    # 不逐层展开，仅统计 dense/moe 层数
+    # Count dense/moe layers without expanding each layer individually
     spec.num_dense_layers = num_layers
     spec.num_moe_layers = 0
 

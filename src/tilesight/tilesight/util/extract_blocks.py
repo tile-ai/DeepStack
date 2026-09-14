@@ -99,7 +99,7 @@ def extract_blocks(gridM, gridN, Stride_M, Stride_N, raster_axis="legacy"):
     return coords[:count]
 
 def extract_blocks_triton_swizzle_column_major(gridM, gridN, Group_M):
-    # 初始化坐标矩阵，Python中没有直接等价于Matlab中的zeros函数，使用numpy的zeros
+    # Initialize the coordinate matrix; Python has no direct equivalent of Matlab's zeros function, so use numpy's zeros
     coords = np.zeros((gridM * gridN, 2), dtype=int)
     count = 0
     
@@ -121,7 +121,7 @@ def extract_blocks_triton_swizzle_column_major(gridM, gridN, Group_M):
         
         m_start = m_end + 1
     
-    # 调整coords数组的大小为实际使用的大小
+    # Resize the coords array to the size actually used
     coords = coords[:count]
     
     return coords

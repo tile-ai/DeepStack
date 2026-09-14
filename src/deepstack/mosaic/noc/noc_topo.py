@@ -10,52 +10,52 @@ import math
 import numpy as np
 import logging
 log = logging.getLogger(__name__)
-# ---------------- 基本类型 ----------------
+# ---------------- Basic types ----------------
 
-# 一个"物理链路"用 (layer_id, u, v) 唯一标识（有向）
-# u, v 是该层的节点 ID（0..M*N-1 或 switch 的 -1 特殊点）
+# A "physical link" is uniquely identified by (layer_id, u, v) (directed)
+# u, v are node IDs within this layer (0..M*N-1, or the special switch node -1).
 Link = Tuple[int, int, int]  # (layer, u, v)
 
-# 一条"链条"是一串物理链路（hop 列表），并带一个权重（该条链子承载的 bytes）
+# A "chain" is a sequence of physical links (a hop list) with a weight (bytes carried by that chain)
 @dataclass
 class Chain:
     hops: List[Link]
     bytes: int
-    # 层级状态轨迹：每一步后的全层坐标快照（外->内），用于人类可读
+    # Hierarchical state trace: human-readable snapshots of all layer coordinates after each step (outer->inner).
     states_coords: List[List[Tuple[int, int]]] = field(default_factory=list)
 
 
 class PortSpread(Enum):
-    EVEN = "even"        # 均分：把 (src,dst) 流量在多个出入口均摊为 k 份
-    NEAREST = "nearest"  # 最近：选最近的一个出/入口（要求拓扑支持 bypass）
+    EVEN = "even"        # Even: divide (src,dst) traffic evenly into k shares across multiple ingress/egress ports.
+    NEAREST = "nearest"  # Nearest: select the nearest ingress/egress port (requires topology support for bypass).
 
 
 class TopoKind(Enum):
-    SWITCH = "switch"        # [1 x N]，所有端口连到中心（记作 -1 节点）
-    ALL2ALL = "all_to_all"   # [M x N]，跨组一跳抽象（常数 hop）
-    RING = "ring"            # [1 x N], N 偶数
-    CHAIN = "chain"          # [1 x N]，N 偶数
-    MESH2D = "mesh2d"        # [M x N], M,N 偶数
-    TORUS2D = "torus2d"      # [M x N], M,N 偶数
-    MCHAIN_NRING = "mchain_nring"   # 行方向为 chain（不环绕），列方向为 ring（环绕）
-    MRING_NCHAIN = "mring_nchain"   # 行方向为 ring（环绕），列方向为 chain（不环绕）
+    SWITCH = "switch"        # [1 x N], all ports connect to the center (node -1).
+    ALL2ALL = "all_to_all"   # [M x N], abstract cross-group communication as one hop (constant hop count).
+    RING = "ring"            # [1 x N], N is even.
+    CHAIN = "chain"          # [1 x N], N is even.
+    MESH2D = "mesh2d"        # [M x N], M,N are even.
+    TORUS2D = "torus2d"      # [M x N], M,N are even.
+    MCHAIN_NRING = "mchain_nring"   # Rows form a chain (no wraparound); columns form a ring (wraparound).
+    MRING_NCHAIN = "mring_nchain"   # Rows form a ring (wraparound); columns form a chain (no wraparound).
 
 
-# ---------------- Topology 抽象 ----------------
+# ---------------- Topology abstraction ----------------
 
 @dataclass
 class Topology:
     kind: TopoKind
-    shape: Tuple[int, int]           # (M, N)，对 ring/chain/switch 用 (1, size)
-    # 每层的单 hop 固有时延与链路带宽
-    hop_latency: float = 1.0         # 单位自洽（例如秒/跳 或 cycle/跳）
-    link_bandwidth: float = 1.0      # 单位与 bytes 匹配（例如 bytes/秒 或 bytes/cycle）
-    # Switch 专用：中心聚合带宽（分别约束进入中心与离开中心的总带宽）
+    shape: Tuple[int, int]           # (M, N); use (1, size) for ring/chain/switch.
+    # Intrinsic per-hop latency and link bandwidth for each layer.
+    hop_latency: float = 1.0         # Use consistent units (e.g., seconds/hop or cycles/hop).
+    link_bandwidth: float = 1.0      # Use units consistent with bytes (e.g., bytes/second or bytes/cycle).
+    # Switch only: aggregate center bandwidth (separate limits for total ingress and egress bandwidth).
     switch_center_in_bw: Optional[float] = None
     switch_center_out_bw: Optional[float] = None
-    # 端口分区规则（按你给的描述定义 in/out 的坐标集合）
-    # 这些字段只对 mesh/torus/ring/chain 有意义，用于"上/下/左/右"的 in/out 划分
-    # 字段是函数，返回一组"端口单元"的列表，每个端口单元对应一个物理节点 ID。
+    # Port partition rules (define in/out coordinate sets according to the supplied description).
+    # These fields apply only to mesh/torus/ring/chain and partition in/out ports by "up/down/left/right"
+    # Each field is a function returning a list of "port units", each corresponding to a physical node ID.
     left_in: Optional[callable] = None
     left_out: Optional[callable] = None
     right_in: Optional[callable] = None
@@ -88,22 +88,22 @@ class Topology:
                 )
         return summary + ")"
 
-    # 把二维坐标映射到线性 ID
+    # Map 2D coordinates to a linear ID.
     def to_id(self, r: int, c: int) -> int:
         M, N = self.shape
         return r * N + c
 
-    # 把线性 ID 映射回 (r, c)
+    # Map a linear ID back to (r, c).
     def to_rc(self, idx: int) -> Tuple[int, int]:
         M, N = self.shape
         return divmod(idx, N)
 
-    # 某方向上的"端口列表"（每个端口是一个物理节点 ID）
+    # A "port list" for a direction (each port is a physical node ID)
     def ports(self, side: str) -> List[int]:
-        # SWITCH：抽象为中心端口 -1（任意方向都走中心）
+        # SWITCH: abstract as center port -1 (all directions go through the center).
         if self.kind == TopoKind.SWITCH:
             return [-1]
-        # ALL2ALL：若工厂提供了端口函数，优先使用；否则按线性 ID 均匀分配到四个方向
+        # ALL2ALL: prefer the factory-provided port functions; otherwise distribute linear IDs evenly across four directions.
         if self.kind == TopoKind.ALL2ALL:
             fn = {
                 "left_in": self.left_in, "left_out": self.left_out,
@@ -141,7 +141,7 @@ class Topology:
         coords = fn(self.shape)
         return [self.to_id(r, c) for (r, c) in coords]
 
-    # 计算层内最短"曼哈顿距离"（对 torus 支持环绕），用于 NEAREST 端口选择
+    # Compute the shortest within-layer "Manhattan distance" (with wraparound for torus) for NEAREST port selection
     def distance(self, a_id: int, b_id: int) -> int:
         if a_id == b_id:
             return 0
@@ -165,20 +165,20 @@ class Topology:
             dc = abs(ac - bc)
             return dr + dc
         if self.kind == TopoKind.RING:
-            # 1xN 环：只考虑列方向
+            # 1xN ring: consider only the column direction.
             delta = abs(bc - ac)
             return min(delta, N - delta)
         if self.kind == TopoKind.CHAIN:
             return abs(bc - ac)
         return 0
 
-    # 层内 XY 路由：返回有向边序列 [(u->v), ...]
+    # Intralayer XY routing: return a sequence of directed edges [(u->v), ...].
     def route_intra(self, s_id: int, d_id: int) -> List[Tuple[int, int]]:
         if s_id == d_id:
             return []
         if self.kind == TopoKind.SWITCH:
-            # switch 层抽象：节点到中心(-1)，再出去
-            # 细化边界：避免 (-1,-1) 自环
+            # Switch-layer abstraction: node to center (-1), then out.
+            # Handle the boundary case to avoid a (-1,-1) self-loop.
             if s_id == -1 and d_id == -1:
                 return []
             if s_id == -1:
@@ -187,9 +187,9 @@ class Topology:
                 return [(s_id, -1)]
             return [(s_id, -1), (-1, d_id)]
         if self.kind == TopoKind.ALL2ALL:
-            # 两种可能：
-            # 1) 同方向端口可一跳直达（抽象化）：s->d
-            # 2) 或者理解为通过"该方向的汇聚节点"（此处仍保持简化为直达以避免虚增 hop）
+            # Two possibilities:
+            # 1) Ports in the same direction connect directly in one abstract hop: s->d.
+            # 2) Alternatively, view this as passing through "the aggregation node for that direction" (still simplified to a direct link here to avoid artificially adding hops)
             if s_id == -1 and d_id == -1:
                 return []
             if s_id == -1:
@@ -207,8 +207,8 @@ class Topology:
         def id_of(r, c): return self.to_id(r % M, c % N)
 
         if self.kind in {TopoKind.MESH2D, TopoKind.TORUS2D, TopoKind.MCHAIN_NRING, TopoKind.MRING_NCHAIN}:
-            # 先行后列（X->Y）
-            # 行方向：mesh 走直线；torus 走更短的方向（考虑环绕）
+            # Rows first, then columns (X->Y).
+            # Row direction: take a straight path for mesh, or the shorter direction for torus (including wraparound).
             r_path: List[int] = []
             if self.kind in {TopoKind.MESH2D, TopoKind.MCHAIN_NRING}:
                 step = 1 if dr >= sr else -1
@@ -216,7 +216,7 @@ class Topology:
                     r_path.append((r, sc))
                     hops.append((id_of(r, sc), id_of(r + step, sc)))
             else:  # row is ring (TORUS2D or MRING_NCHAIN)
-                # 选择 |Δ| 与 M-|Δ| 的更小者方向
+                # Choose the direction with the smaller of |Δ| and M-|Δ|.
                 delta = (dr - sr) % M
                 neg = (sr - dr) % M
                 if delta <= neg:
@@ -228,7 +228,7 @@ class Topology:
                         r = (sr - k) % M
                         hops.append((id_of(r, sc), id_of(r - 1, sc)))
 
-            # 列方向
+            # Column direction.
             if self.kind in {TopoKind.MESH2D, TopoKind.MRING_NCHAIN}:
                 step = 1 if dc >= sc else -1
                 for c in range(sc, dc, step):
@@ -248,7 +248,7 @@ class Topology:
             return hops
 
         if self.kind == TopoKind.RING:
-            # 1xN，按短向走（左右之一）
+            # 1xN: take the shorter direction (left or right).
             N = self.shape[1]
             delta = (dc - sc) % N
             neg = (sc - dc) % N
@@ -271,24 +271,23 @@ class Topology:
         raise NotImplementedError(f"route_intra not implemented for {self.kind}")
 
 
-# ---------------- 端口规则（按你给出的划分） ----------------
+# ---------------- Port rules (using the supplied partition) ----------------
 
 def _range2(a, b):
-    # [a:b] 的闭开区间转列表
+    # Convert the half-open interval [a:b] to a list.
     return list(range(a, b)) if a < b else []
 
 
 def make_mesh_or_torus(M: int, N: int, kind: TopoKind, *, hop_latency: float = 1.0, link_bandwidth: float = 1.0) -> Topology:
     assert kind in (TopoKind.MESH2D, TopoKind.TORUS2D, TopoKind.MCHAIN_NRING, TopoKind.MRING_NCHAIN)
     assert M >= 1 and N >= 1, "M,N must be >= 1 for mesh/torus"
-    # 兼容 M==1 或 N==1：维度为 1 时，in/out 端口映射到同一组坐标（且不能为空）
+    # Handle M==1 or N==1: when a dimension is 1, in/out ports map to the same coordinate set (which must be nonempty)
     assert (M == 1 or M % 2 == 0) and (N == 1 or N % 2 == 0), "M,N must be even unless it's 1 for mesh/torus"
 
     def _split_in_out_indices(dim: int):
-        """
-        把 [0..dim-1] 沿中点拆成两组索引：
-        - dim>1：in 用后半段 [dim/2 .. dim-1]，out 用前半段 [0 .. dim/2-1]
-        - dim==1：in/out 都是 [0]（同一个点，且不为空）
+        """Split indices [0, dim-1] into input/output halves.
+        For dim>1, inputs use the second half and outputs the first. For dim==1,
+        both groups contain [0].
         """
         if dim == 1:
             return (0,), (0,)
@@ -297,7 +296,7 @@ def make_mesh_or_torus(M: int, N: int, kind: TopoKind, *, hop_latency: float = 1
     rows_in, rows_out = _split_in_out_indices(M)
     cols_in, cols_out = _split_in_out_indices(N)
 
-    # 预先把 8 个端口坐标算好，便于阅读/审阅；Topology 回调里只返回常量列表的拷贝
+    # Precompute the 8 port coordinates for readability/review; Topology callbacks only return copies of constant lists
     left_in_ports = tuple((r, 0) for r in rows_in)
     left_out_ports = tuple((r, 0) for r in rows_out)
     right_in_ports = tuple((r, N - 1) for r in rows_out)
@@ -365,7 +364,7 @@ def make_chain(N: int, *, hop_latency: float = 1.0, link_bandwidth: float = 1.0)
     def right_out(shape):
         M, N = shape
         return [(0, N-1)]
-    # 上下端口按 ring 规则拆半（用于多层汇聚/下沉时的均分）
+    # Split up/down ports in half using ring rules (for even splitting during multilayer aggregation/descent).
     def up_out(shape):
         M, N = shape
         return [(0, c) for c in range(0, N//2)]
@@ -393,7 +392,7 @@ def make_switch(
     switch_center_in_bw: Optional[float] = None,
     switch_center_out_bw: Optional[float] = None,
 ) -> Topology:
-    # [1 x N]，所有端口连中心 -1（中心端口由 Topology.ports 返回 [-1] 表示）
+    # [1 x N], all ports connect to center -1 (Topology.ports represents the center port as [-1]).
     return Topology(
         kind=TopoKind.SWITCH,
         shape=(1, N),
@@ -405,7 +404,7 @@ def make_switch(
 
 
 def make_all2all(M: int, N: int, *, hop_latency: float = 1.0, link_bandwidth: float = 1.0) -> Topology:
-    # [M x N]，为四个方向提供均匀分配的端口函数（每节点至少一进一出）
+    # [M x N], provide port functions that distribute ports evenly across four directions (at least one ingress and one egress per node).
     assert M * N >= 4, "ALL2ALL 需要至少 4 个节点"
 
     def _mk_group(shape):
@@ -443,21 +442,21 @@ def make_all2all(M: int, N: int, *, hop_latency: float = 1.0, link_bandwidth: fl
     )
 
 
-# ---------------- 分层拓扑与路由 ----------------
+# ---------------- Hierarchical topology and routing ----------------
 
 
 @dataclass
 class Hierarchy:
-    # 从外到内：L3 (index 2), L2 (1), L1 (0)——为了直观，这里我们按 [L3, L2, L1] 存放
-    layers: List[Topology]          # 长度 <= 3
-    port_spread: PortSpread = PortSpread.EVEN  # 端口选择策略（EVEN/NEAREST）
+    # Outer to inner: L3 (index 2), L2 (1), L1 (0); store as [L3, L2, L1] here for clarity.
+    layers: List[Topology]          # Length <= 3.
+    port_spread: PortSpread = PortSpread.EVEN  # Port selection policy (EVEN/NEAREST).
     name: str = "default_noc_hierarchy"
-    # 对于 EVENS：为每个 (src,dst) 在每次"跨层"动作时，均匀分裂成 K 份（K=端口数）
-    # 对于 NEAREST：只选择一个最近端口（需拓扑具备 bypass）
+    # For EVENS: split each (src,dst) evenly into K parts at every "cross-layer" step (K = number of ports)
+    # For NEAREST: select only the nearest port (requires topology support for bypass).
 
-    # 将逻辑"节点 ID (0..N-1)"映射到每层的坐标（r,c）。
-    # 默认实现按层形状把线性 ID 展开到内层（L1）的 (r,c)，外层 (L2/L3) 则对 (r,c) 进行整分块上取整。
-    # 你也可以传入自定义函数，精确描述你在注释里的对齐（如 [[0,0],[0,0],[0,2]] 等）。
+    # Map logical "node IDs (0..N-1)" to coordinates (r,c) in each layer.
+    # The default mapping expands linear IDs into inner-layer (L1) coordinates (r,c) using layer shapes; outer layers (L2/L3) use integer blocking of (r,c), rounding up.
+    # A custom function can specify the exact alignment described in the comments (e.g., [[0,0],[0,0],[0,2]]).
     node_mapper: Optional[callable] = None  # f(node_id: int, layers: List[Topology]) -> List[Tuple[int,int]]
     # Optional caller-owned energy profile; None selects the bundled reference path.
     energy_config: Optional["NocEnergyConfig"] = None
@@ -476,27 +475,26 @@ class Hierarchy:
 
     @property
     def num_devices(self) -> int:
-        """返回该 Hierarchy 覆盖的设备总数，等于各层 shape 的连乘积。"""
+        """Return the total number of devices covered by this Hierarchy, equal to the product of all layer shapes."""
         n = 1
         for layer in self.layers:
             n *= layer.shape[0] * layer.shape[1]
         return n
 
-    # -------- 双向映射：coords <-> nid --------
+    # -------- Bidirectional mapping: coords <-> nid --------
     def coords_to_nid(self, coords: List[Tuple[int, int]]) -> int:
-        """
-        按"最内层连续"的规则，将外->内各层坐标 [(r_L3,c_L3), (r_L2,c_L2), (r_L1,c_L1)]
-        映射为单个线性 nid。公式：
+        """Map outer-to-inner layer coordinates [(r_L3,c_L3), (r_L2,c_L2), (r_L1,c_L1)]
+        to a single linear nid, with the innermost layer varying fastest:
           nid = k_L1
                 + k_L2 * (M1*N1)
                 + k_L3 * (M1*N1*M2*N2)
-        其中 k_Lx = r_Lx * N_Lx + c_Lx。
-        通用到 <=3 任意层数。
+        where k_Lx = r_Lx * N_Lx + c_Lx.
+        Supports any number of layers up to 3.
         """
         assert len(coords) == len(self.layers), "coords 层数需与 layers 一致"
         nid = 0
         stride = 1
-        # 从内到外叠加（内层 stride=1）
+        # Accumulate from inner to outer layers (innermost stride=1).
         for (r, c), topo in zip(reversed(coords), reversed(self.layers)):
             M, N = topo.shape
             assert 0 <= r < M and 0 <= c < N
@@ -506,14 +504,14 @@ class Hierarchy:
         return nid
 
     def nid_to_coords(self, nid: int) -> List[Tuple[int, int]]:
+        """Convert a linear nid back to outer-to-inner layer coordinates, reversing coords_to_nid:
+          Successively take the remainder and integer quotient by size_L1, size_L2,
+          and size_L3 to obtain k_L1, k_L2, and k_L3. Then decompose each k_Lx
+          into (r_Lx, c_Lx), where r=k//N and c=k%N.
         """
-        线性 nid 还原为外->内各层坐标，遵循与 coords_to_nid 相反的分解：
-          依次对 size_L1, size_L2, size_L3 取余/整除，得到 k_L1,k_L2,k_L3，
-          再分解 k_Lx -> (r_Lx, c_Lx) 其中 r=k//N, c=k%N。
-        """
-        coords_rev: List[Tuple[int, int]] = []  # 内->外
+        coords_rev: List[Tuple[int, int]] = []  # Inner->outer.
         rem = int(nid)
-        for topo in reversed(self.layers):  # 先内层
+        for topo in reversed(self.layers):  # Innermost layer first.
             M, N = topo.shape
             size = M * N
             k = rem % size
@@ -521,73 +519,73 @@ class Hierarchy:
             r = k // N
             c = k % N
             coords_rev.append((r, c))
-        # 若 rem>0，说明 nid 超容量，这里保留容错：直接忽略高位（也可改为抛错）
+        # rem>0 means nid exceeds capacity; tolerate this by ignoring higher-order digits (could instead raise an error).
         return list(reversed(coords_rev))
 
     def map_node(self, nid: int) -> List[Tuple[int, int]]:
         if self.node_mapper:
             return self.node_mapper(nid, self.layers)
-        # 默认：使用"最内层连续"的双向映射
+        # Default: use a bidirectional mapping with "contiguous innermost-layer IDs"
         return self.nid_to_coords(nid)
 
-    # 找到从外到里，第一层"二者不相等"的层 index（外层优先）
+    # Find the first layer index, from outermost to innermost, where "the two differ" (outer layers first)
     def first_diff_layer(self, s_coords: List[Tuple[int,int]], d_coords: List[Tuple[int,int]]) -> int:
         for i, (a, b) in enumerate(zip(s_coords, d_coords)):
             if a != b:
                 return i
-        return len(s_coords) - 1  # 全相同则返回最内层
+        return len(s_coords) - 1  # If all coordinates match, return the innermost layer.
 
-    # 计算一次跨层动作时的端口集合（例如 L3 -> L2 的"down_out/down_in"）
+    # Determine the ports for a cross-layer step (e.g., "down_out/down_in" for L3 -> L2)
     def ports_for_cross(self, topo: Topology, direction: str) -> List[int]:
         # direction in {"up_out","up_in","down_out","down_in","left_out","left_in","right_out","right_in"}
         return topo.ports(direction)
 
-    # 核心路由：把 (src, dst, bytes) 映射为若干条 Chain（考虑 split）
+    # Core routing: map (src, dst, bytes) to one or more Chains, accounting for splits.
     def route(self, src: int, dst: int, bytes_value: int) -> List[Chain]:
-        # 映射到各层坐标（外->内）
+        # Map to coordinates at each layer (outer->inner).
         s_coords = self.map_node(src)
         d_coords = self.map_node(dst)
         # print(f"s_coords: {s_coords}, d_coords: {d_coords}")
         log.debug("s_coords: %s, d_coords: %s", s_coords, d_coords)
         L = len(self.layers)
         chains: List[Chain] = [Chain(hops=[], bytes=bytes_value)]
-        # 初始快照
+        # Initial snapshot.
         for ch in chains:
             ch.states_coords.append(list(s_coords))
-        # 若最内层为 switch，先将 L1 置为中心 (-1,-1)
+        # If the innermost layer is a switch, first place L1 at the center (-1,-1).
         if self.layers[-1].kind == TopoKind.SWITCH:
             for ch in chains:
                 init = list(ch.states_coords[-1])
                 init[-1] = (-1, -1)
                 ch.states_coords.append(init)
 
-        # 起始层：从"最外层发生分歧"的层开始（若希望总从最外层，可改为 0）
+        # Starting layer: begin at the "outermost layer where they diverge" (set to 0 to always start from the outermost layer)
         start_layer = self.first_diff_layer(s_coords, d_coords)
 
-        # 当前各层"起点"ID（会在推进时按跨层入口更新内层起点）
+        # Current "source" ID in each layer (inner-layer sources are updated to cross-layer ingress ports as routing proceeds)
         cur_start_ids = [self.layers[i].to_id(*s_coords[i]) for i in range(L)]
 
-        # 根据单步 hop 判断方向（up/down/left/right）
+        # Determine the direction (up/down/left/right) from a single hop.
         def hop_dir(topo: Topology, u: int, v: int) -> str:
             (ur, uc) = topo.to_rc(u)
             (vr, vc) = topo.to_rc(v)
             M, N = topo.shape
             if ur != vr:
-                # 行方向
+                # Row direction.
                 if topo.kind in {TopoKind.TORUS2D, TopoKind.MRING_NCHAIN}:
-                    # 约定：一步 r := (r-1)%M 视作 "down"（符合 0->3 的期望），否则 "up"
+                    # Convention: a step r := (r-1)%M is "down" (matching the expected 0->3 direction); otherwise "up".
                     return "down" if (vr == (ur - 1) % M) else "up"
                 else:
                     return "up" if vr > ur else "down"
             else:
-                # 列方向
+                # Column direction.
                 if topo.kind in {TopoKind.TORUS2D, TopoKind.RING, TopoKind.MCHAIN_NRING}:
-                    # 一步 c := (c-1)%N 视作 "left"，否则 "right"
+                    # A step c := (c-1)%N is "left"; otherwise "right".
                     return "left" if (vc == (uc - 1) % N) else "right"
                 else:
                     return "right" if vc > uc else "left"
 
-        # 端口集合名映射
+        # Map port-set names.
         def port_sides(direction: str) -> tuple[str, str]:
             if direction == "down":
                 return "down_out", "up_in"
@@ -600,46 +598,46 @@ class Hierarchy:
             raise ValueError(f"Invalid direction: {direction}")
 
 
-        # 均匀选择端口索引（确定性；不分裂链条，避免指数膨胀）
+        # Select port indices uniformly and deterministically, without splitting chains to avoid exponential growth.
         def select_index(num: int, layer_idx: int, hop_idx: int) -> int:
             if num <= 0:
                 return -1
-            # 稳定整数混合，避免 Python 进程随机盐影响
+            # Use stable integer mixing to avoid Python's per-process random hash salt.
             x = (int(src) * 1315423911) ^ (int(dst) * 2654435761) ^ (int(layer_idx) * 97) ^ int(hop_idx)
             if x < 0:
                 x = -x
             return x % num
 
-        # 去重追加快照
+        # Append snapshots with deduplication.
         def append_state(ch: Chain, snap: List[Tuple[int, int]]):
             if not ch.states_coords or ch.states_coords[-1] != snap:
                 ch.states_coords.append(snap)
 
-        # 外层驱动：逐层向内推进
+        # Drive routing from the outer layer, proceeding inward layer by layer.
         for layer_idx in range(start_layer, L):
             topo = self.layers[layer_idx]
             s_id = cur_start_ids[layer_idx]
             d_id = self.layers[layer_idx].to_id(*d_coords[layer_idx])
 
-            # 1) 在本层：从当前起点到目标坐标的 XY（或环绕）路径（先只记录 hop，不立即生成快照）
+            # 1) Within this layer: find the XY (or wraparound) path from the current source to the target coordinates (record hops first, without generating snapshots yet).
             outer_hops = topo.route_intra(s_id, d_id)
             for ch in chains:
                 for (u, v) in outer_hops:
                     ch.hops.append((layer_idx, u, v))
 
-            # 若还有更内层：
+            # If another inner layer exists:
             if layer_idx < L - 1:
                 inner_topo = self.layers[layer_idx + 1]
 
-                # 2) 对每个外层 hop，依据方向在两层之间放置端口占位，并把"内层起点"推进到对应入口端口
+                # 2) For each outer-layer hop, place port placeholders between the two layers according to direction, then advance the "inner-layer source" to the corresponding ingress port
                 last_snapshot = None
                 for hop_idx, (u, v) in enumerate(outer_hops):
                     direction = hop_dir(topo, u, v)
                     out_side, in_side = port_sides(direction)
-                    # 外层用于链路统计的端口（保持不变）
+                    # Outer-layer ports used for link statistics (unchanged).
                     out_ports_outer = topo.ports(out_side)
                     in_ports_inner = inner_topo.ports(in_side)
-                    # 为了人类可读快照：在内层也给"出方向"分配端口（egress on inner layer）
+                    # For human-readable snapshots: also assign an "outgoing-direction" port on the inner layer (egress on inner layer)
                     out_ports_inner = inner_topo.ports(out_side)
                     K = min(len(out_ports_outer), len(in_ports_inner), len(out_ports_inner) if out_ports_inner else len(in_ports_inner))
                     if K <= 0:
@@ -649,7 +647,7 @@ class Hierarchy:
                     in_id = in_ports_inner[sel]
                     inner_out_id = out_ports_inner[sel] if out_ports_inner else in_id
 
-                    # 先在内层从当前坐标路由到"本次外层 hop 所需的内层出方向端口"
+                    # First route within the inner layer from the current coordinates to "the inner-layer egress port required for this outer-layer hop"
                     inner_cur = cur_start_ids[layer_idx + 1]
                     if inner_cur != inner_out_id:
                         inner_steps_to_out = inner_topo.route_intra(inner_cur, inner_out_id)
@@ -668,10 +666,10 @@ class Hierarchy:
                                     ll_topo = self.layers[-1]
                                     ll_dir = hop_dir(ll_topo, uu, vv)
                                     ll_out_side, ll_in_side = port_sides(ll_dir)
-                                    # 外层用于链路统计的端口（保持不变）
+                                    # Outer-layer ports used for link statistics (unchanged).
                                     ll_out_ports_outer = inner_topo.ports(ll_out_side)
                                     ll_in_ports_inner = ll_topo.ports(ll_in_side)
-                                    # 为了人类可读快照：在内层也给"出方向"分配端口（egress on inner layer）
+                                    # For human-readable snapshots: also assign an "outgoing-direction" port on the inner layer (egress on inner layer)
                                     ll_out_ports_inner = ll_topo.ports(ll_out_side)
                                     ll_K = min(len(ll_out_ports_outer), len(ll_in_ports_inner), len(ll_out_ports_inner) if ll_out_ports_inner else len(ll_in_ports_inner))
                                     if ll_K <= 0:
@@ -681,7 +679,7 @@ class Hierarchy:
                                     ll_in_id = ll_in_ports_inner[ll_sel]
                                     ll_inner_out_id = ll_out_ports_inner[ll_sel] if ll_out_ports_inner else ll_in_id
                                     ll_inner_cur = cur_start_ids[-1]
-                                    # 在最内层从当前坐标路由到"本次内层 hop 所需的最内层出方向端口"
+                                    # Route within the innermost layer from the current coordinates to "the innermost-layer egress port required for this inner-layer hop"
                                     if ll_inner_cur != ll_inner_out_id:
                                         ll_inner_steps_to_out = ll_topo.route_intra(ll_inner_cur, ll_inner_out_id)
                                         for (uuu, vvv) in ll_inner_steps_to_out:
@@ -691,12 +689,12 @@ class Hierarchy:
                                             snap_step2[-1] = (vr3, vc3)
                                             append_state(ch, snap_step2)
                                             snap_base = snap_step2
-                                    # 跨层
+                                    # Cross-layer transition.
                                     snap_step3 = list(snap_base)
                                     snap_step3[layer_idx + 1] = self.layers[layer_idx + 1].to_rc(vv) if vv != -1 else (-1, -1)
                                     snap_step3[-1] = self.layers[-1].to_rc(ll_in_id) if ll_in_id != -1 else (-1, -1)
                                     append_state(ch, snap_step3)
-                                    # 路由到上一层出口
+                                    # Route to the previous layer's egress port.
                                     if ll_in_id != vv:
                                         ll_steps_to_outer = ll_topo.route_intra(ll_in_id, vv)
                                         for (uuu, vvv) in ll_steps_to_outer:
@@ -713,7 +711,7 @@ class Hierarchy:
                     for ch in chains:
                         ch.hops.append((layer_idx, out_id, out_id))
                         ch.hops.append((layer_idx + 1, in_id, in_id))
-                        # 状态轨迹：先记录"内层出方向端口占位"，外层仍在 u 上
+                        # State trace: first record the "inner-layer egress port placeholder", while the outer layer remains at u
                         ur, uc = self.layers[layer_idx].to_rc(u) if u != -1 else (-1, -1)
                         ior, ioc = self.layers[layer_idx + 1].to_rc(inner_out_id) if inner_out_id != -1 else (-1, -1)
                         prev = list(ch.states_coords[-1]) if last_snapshot is None else list(last_snapshot)
@@ -722,7 +720,7 @@ class Hierarchy:
                         snap_out[layer_idx + 1] = (ior, ioc)
                         append_state(ch, snap_out)
                         last_snapshot = snap_out
-                        # 状态轨迹：执行外层 hop 后，外层到 v，内层到入口端口
+                        # State trace: after the outer-layer hop, the outer layer is at v and the inner layer is at the ingress port.
                         vr, vc = self.layers[layer_idx].to_rc(v) if v != -1 else (-1, -1)
                         inr, inc = self.layers[layer_idx + 1].to_rc(in_id) if in_id != -1 else (-1, -1)
                         snap_in = list(last_snapshot)
@@ -738,13 +736,13 @@ class Hierarchy:
                             append_state(ch, snap_in)
                             cur_start_ids[-1] = ll_in_id
                         last_snapshot = snap_in
-                    # 推进下一层的"当前起点"
+                    # Advance the next layer's "current source"
                     cur_start_ids[layer_idx + 1] = in_id
 
-                    # 在本次外层 hop 之后，立刻在内层从入口路由到"下一步需要的出口"或最终目标
+                    # Immediately after this outer-layer hop, route within the inner layer from the ingress to "the egress needed next" or the final destination
                     inner_cur = cur_start_ids[layer_idx + 1]
                     if hop_idx < len(outer_hops) - 1:
-                        # 还有下一步外层 hop：计算下一个方向所需的内层出口
+                        # If another outer-layer hop follows, compute the inner-layer egress port required for its direction.
                         next_u, next_v = outer_hops[hop_idx + 1]
                         next_dir = hop_dir(topo, next_u, next_v)
                         next_out_side, _ = port_sides(next_dir)
@@ -769,10 +767,10 @@ class Hierarchy:
                                     ll_topo = self.layers[-1]
                                     ll_dir = hop_dir(ll_topo, uu, vv)
                                     ll_out_side, ll_in_side = port_sides(ll_dir)
-                                    # 外层用于链路统计的端口（保持不变）
+                                    # Outer-layer ports used for link statistics (unchanged).
                                     ll_out_ports_outer = inner_topo.ports(ll_out_side)
                                     ll_in_ports_inner = ll_topo.ports(ll_in_side)
-                                    # 为了人类可读快照：在内层也给"出方向"分配端口（egress on inner layer）
+                                    # For human-readable snapshots: also assign an "outgoing-direction" port on the inner layer (egress on inner layer)
                                     ll_out_ports_inner = ll_topo.ports(ll_out_side)
                                     ll_K = min(len(ll_out_ports_outer), len(ll_in_ports_inner), len(ll_out_ports_inner) if ll_out_ports_inner else len(ll_in_ports_inner))
                                     if ll_K <= 0:
@@ -782,7 +780,7 @@ class Hierarchy:
                                     ll_in_id = ll_in_ports_inner[ll_sel]
                                     ll_inner_out_id = ll_out_ports_inner[ll_sel] if ll_out_ports_inner else ll_in_id
                                     ll_inner_cur = cur_start_ids[-1]
-                                    # 在最内层从当前坐标路由到"本次内层 hop 所需的最内层出方向端口"
+                                    # Route within the innermost layer from the current coordinates to "the innermost-layer egress port required for this inner-layer hop"
                                     if ll_inner_cur != ll_inner_out_id:
                                         ll_inner_steps_to_out = ll_topo.route_intra(ll_inner_cur, ll_inner_out_id)
                                         for (uuu, vvv) in ll_inner_steps_to_out:
@@ -792,12 +790,12 @@ class Hierarchy:
                                             snap_step2[-1] = (vr3, vc3)
                                             append_state(ch, snap_step2)
                                             snap_base = snap_step2
-                                    # 跨层
+                                    # Cross-layer transition.
                                     snap_step3 = list(snap_base)
                                     snap_step3[layer_idx + 1] = self.layers[layer_idx + 1].to_rc(vv) if vv != -1 else (-1, -1)
                                     snap_step3[-1] = self.layers[-1].to_rc(ll_in_id) if ll_in_id != -1 else (-1, -1)
                                     append_state(ch, snap_step3)
-                                    # 路由到上一层出口
+                                    # Route to the previous layer's egress port.
                                     if ll_in_id != vv:
                                         ll_steps_to_outer = ll_topo.route_intra(ll_in_id, vv)
                                         for (uuu, vvv) in ll_steps_to_outer:
@@ -811,7 +809,7 @@ class Hierarchy:
                         cur_start_ids[layer_idx + 1] = inner_out_next
                         last_snapshot = chains[0].states_coords[-1]
                     else:
-                        # 最后一个外层 hop：路由到内层最终目标
+                        # Last outer-layer hop: route to the inner layer's final target.
                         inner_target = inner_topo.to_id(*d_coords[layer_idx + 1])
                         inner_steps = inner_topo.route_intra(inner_cur, inner_target)
                         for ch in chains:
@@ -828,10 +826,10 @@ class Hierarchy:
                                     ll_topo = self.layers[-1]
                                     ll_dir = hop_dir(ll_topo, uu, vv)
                                     ll_out_side, ll_in_side = port_sides(ll_dir)
-                                    # 外层用于链路统计的端口（保持不变）
+                                    # Outer-layer ports used for link statistics (unchanged).
                                     ll_out_ports_outer = inner_topo.ports(ll_out_side)
                                     ll_in_ports_inner = ll_topo.ports(ll_in_side)
-                                    # 为了人类可读快照：在内层也给"出方向"分配端口（egress on inner layer）
+                                    # For human-readable snapshots: also assign an "outgoing-direction" port on the inner layer (egress on inner layer)
                                     ll_out_ports_inner = ll_topo.ports(ll_out_side)
                                     ll_K = min(len(ll_out_ports_outer), len(ll_in_ports_inner), len(ll_out_ports_inner) if ll_out_ports_inner else len(ll_in_ports_inner))
                                     if ll_K <= 0:
@@ -841,7 +839,7 @@ class Hierarchy:
                                     ll_in_id = ll_in_ports_inner[ll_sel]
                                     ll_inner_out_id = ll_out_ports_inner[ll_sel] if ll_out_ports_inner else ll_in_id
                                     ll_inner_cur = cur_start_ids[-1]
-                                    # 在最内层从当前坐标路由到"本次内层 hop 所需的最内层出方向端口"
+                                    # Route within the innermost layer from the current coordinates to "the innermost-layer egress port required for this inner-layer hop"
                                     if ll_inner_cur != ll_inner_out_id:
                                         ll_inner_steps_to_out = ll_topo.route_intra(ll_inner_cur, ll_inner_out_id)
                                         for (uuu, vvv) in ll_inner_steps_to_out:
@@ -851,12 +849,12 @@ class Hierarchy:
                                             snap_step2[-1] = (vr3, vc3)
                                             append_state(ch, snap_step2)
                                             snap_base = snap_step2
-                                    # 跨层
+                                    # Cross-layer transition.
                                     snap_step3 = list(snap_base)
                                     snap_step3[layer_idx + 1] = self.layers[layer_idx + 1].to_rc(vv) if vv != -1 else (-1, -1)
                                     snap_step3[-1] = self.layers[-1].to_rc(ll_in_id) if ll_in_id != -1 else (-1, -1)
                                     append_state(ch, snap_step3)
-                                    # 路由到上一层出口
+                                    # Route to the previous layer's egress port.
                                     if ll_in_id != vv:
                                         ll_steps_to_outer = ll_topo.route_intra(ll_in_id, vv)
                                         for (uuu, vvv) in ll_steps_to_outer:
@@ -870,9 +868,9 @@ class Hierarchy:
                         cur_start_ids[layer_idx + 1] = inner_target
                         last_snapshot = chains[0].states_coords[-1]
 
-                # 3) 外层走完后：内层已在每个外层 hop 之后即时路由，无需再整体路由
+                # 3) After completing the outer layer, inner-layer routing has already occurred after each outer-layer hop; no additional full routing pass is needed.
 
-        # 尾声：若最内层仍停留在入口（如 switch 的 -1,-1），补记最后从入口到目标端口的一步快照
+        # Finish: if the innermost layer remains at the ingress (e.g., switch center -1,-1), append the final snapshot from ingress to the target port.
         for ch in chains:
             if ch.states_coords:
                 last = ch.states_coords[-1]
@@ -897,66 +895,61 @@ class Hierarchy:
         return chains
 
 
-# ---------------- 统计与延迟计算 ----------------
+# ---------------- Statistics and latency calculation ----------------
 
 @dataclass
 class RouteStats:
-    max_logical_hops: int                 # 所有 (src,dst) 的链条里，最大的 hop 数（单条链计算）
-    max_hop_latency: float                # 按层 hop 延迟求和后的最大链路总 hop 时延
-    # 注意：此处的 Link 端点 u,v 现表示"扩展全局节点 ID（含外层坐标与内层锚点）"，不是本层局部 ID。
-    link_bytes: Dict[Link, int]           # 每条"全局物理边"累计的字节数 (layer_idx, ext_u, ext_v)
-    max_link_load: Tuple[Link, int]       # (链路, bytes)
-    max_link_time: Tuple[Link, float]     # (链路, bytes/bw)
-    # 单 stage latency = max_hop_latency + max_link_time[1]
+    max_logical_hops: int                 # Maximum hop count among all (src,dst) chains, measured per chain.
+    max_hop_latency: float                # Maximum total hop latency across chains, summing each layer's hop latency.
+    # Note: Link endpoints u,v now denote "extended global node IDs (including outer-layer coordinates and inner-layer anchors)", not local IDs within this layer.
+    link_bytes: Dict[Link, int]           # Accumulated bytes on each "global physical edge" (layer_idx, ext_u, ext_v)
+    max_link_load: Tuple[Link, int]       # (link, bytes)
+    max_link_time: Tuple[Link, float]     # (link, bytes/bw)
+    # Single-stage latency = max_hop_latency + max_link_time[1].
     stage_latency: float
 
-# ---------------- 便捷工厂与示例 ----------------
+# ---------------- Convenience factories and examples ----------------
 
 # def example_hierarchy_for_your_comment() -> Hierarchy:
 #     """
-#     示例：
+#     Example:
 #       L1: switch N=4
 #       L2: 2D mesh = (2x2)
 #       L3: 2D torus = (4x4)
-#     从外向内 layers = [L3, L2, L1]
+#     Outer to inner: layers = [L3, L2, L1].
 #     """
-#     # 每层的 hop_latency、link_bandwidth 与 switch-center 带宽均由调用者提供。
-#     # 使用默认的"最内层连续"映射，不再提供自定义 mapper
+#     # The caller supplies each layer's hop_latency, link_bandwidth, and switch-center bandwidth.
+#     # Use the default mapping with "contiguous innermost-layer IDs"; no custom mapper is supplied
 #     return Hierarchy(layers=[L3, L2, L1], port_spread=PortSpread.EVEN, node_mapper=None)
 
 
 
 
-# ======== 扩展矩阵与可视化（带宽/通信量/利用率） =============================
+# ======== Extended matrices and visualization (bandwidth/traffic/utilization) =============================
 
 def _build_extended_indexer(h: Hierarchy):
-    """
-    在最内层引入一个额外的"锚点"坐标 (-1,-1)，形成扩展节点空间：
-      - 若最内层为 SWITCH，则锚点等价于中心节点；
-      - 若最内层不是 SWITCH，则锚点为虚拟节点，仅用于跨层连边的占位，不产生 L1 内联带宽或自环。
-    返回：
-      - ext_size: 扩展后的总节点数
-      - coords_to_ext_id(coords)
-      - ext_id_to_coords(eid)
-      - anchor_token: (-1,-1)
+    """Add an innermost anchor coordinate (-1,-1) to the extended node space.
+    For SWITCH this is the center; otherwise it is a virtual cross-layer placeholder
+    with no L1 internal bandwidth or self-loop. Return ext_size, coords_to_ext_id,
+    ext_id_to_coords, and anchor_token=(-1,-1).
     """
     layers = h.layers
     L = len(layers)
     assert L >= 1, "hierarchy 至少一层"
 
-    # 每层的基数（flat size）
+    # Radix of each layer (flat size).
     base_sizes = []
     for i, topo in enumerate(reversed(layers)):
         M, N = topo.shape
         base_sizes.append(M * N)
     base_sizes = list(reversed(base_sizes))
 
-    # 无论最内层类型，均在最内层追加 1 个锚点
+    # Append 1 anchor to the innermost layer, regardless of its type.
     l1_extra = 1
-    # 扩展后的每层 size（仅最后一层 +1）
+    # Extended size of each layer (+1 only for the final layer).
     ext_layer_sizes = base_sizes[:-1] + [base_sizes[-1] + l1_extra]
 
-    # 计算 strides（内到外）
+    # Compute strides (inner to outer).
     strides = [1] * L
     for i in range(L - 2, -1, -1):
         strides[i] = strides[i + 1] * ext_layer_sizes[i + 1]
@@ -972,7 +965,7 @@ def _build_extended_indexer(h: Hierarchy):
             r, c = coords[li]
             M, N = layers[li].shape
             if li == L - 1 and (r, c) == (-1, -1):
-                k = base_sizes[-1]  # 追加的锚点索引
+                k = base_sizes[-1]  # Index of the appended anchor.
             else:
                 k = r * N + c
             eid += k * strides[li]
@@ -981,7 +974,7 @@ def _build_extended_indexer(h: Hierarchy):
     def ext_id_to_coords(eid: int) -> list[tuple[int, int]]:
         rem = int(eid)
         coords_rev: list[tuple[int, int]] = []
-        # 内->外分解
+        # Decompose inner->outer.
         for li in range(L - 1, -1, -1):
             topo = layers[li]
             M, N = topo.shape
@@ -999,8 +992,9 @@ def _build_extended_indexer(h: Hierarchy):
 
 
 def _neighbors_2d(kind: TopoKind, M: int, N: int):
-    """生成二维网格的有向相邻边列表 (u_idx, v_idx, direction)。
-    支持 MESH2D/TORUS2D/RING/CHAIN/ALL2ALL 的相邻定义。"""
+    """Generate directed 2D-neighbor edges (u_idx, v_idx, direction) for
+    MESH2D, TORUS2D, RING, CHAIN, and ALL2ALL topologies.
+    """
     edges: list[tuple[int, int, str]] = []
     def id_of(r: int, c: int) -> int:
         return r * N + c
@@ -1031,22 +1025,22 @@ def _neighbors_2d(kind: TopoKind, M: int, N: int):
     if kind == TopoKind.MCHAIN_NRING:
         for r in range(M):
             for c in range(N):
-                # 行方向 chain（无环绕）
+                # Row-direction chain (no wraparound).
                 if r + 1 < M:
                     edges.append((id_of(r, c), id_of(r + 1, c), "down"))
                 if r - 1 >= 0:
                     edges.append((id_of(r, c), id_of(r - 1, c), "up"))
-                # 列方向 ring（有环绕）
+                # Column-direction ring (wraparound).
                 edges.append((id_of(r, c), id_of(r, (c + 1) % N), "right"))
                 edges.append((id_of(r, c), id_of(r, (c - 1) % N), "left"))
         return edges
     if kind == TopoKind.MRING_NCHAIN:
         for r in range(M):
             for c in range(N):
-                # 行方向 ring（有环绕）
+                # Row-direction ring (wraparound).
                 edges.append((id_of(r, c), id_of((r + 1) % M, c), "down"))
                 edges.append((id_of(r, c), id_of((r - 1) % M, c), "up"))
-                # 列方向 chain（无环绕）
+                # Column-direction chain (no wraparound).
                 if c + 1 < N:
                     edges.append((id_of(r, c), id_of(r, c + 1), "right"))
                 if c - 1 >= 0:
@@ -1082,36 +1076,36 @@ def _side_map(direction: str) -> tuple[str, str]:
 
 
 def build_extended_bandwidth_matrix(h: Hierarchy) -> np.ndarray:
-    """
-    生成扩展后的带宽矩阵（320x320 在示例里）。
-    规则：
-      - L1（SWITCH）层：center <-> ports 带宽 = L1.link_bandwidth；中心自环 = center_in_bw+center_out_bw。
-      - L2 层：在同一 L3 tile 内，按拓扑相邻的 L2 节点间建立带宽 = L2.link_bandwidth，L1 坐标固定为中心 (-1,-1)。
-      - L3 层：跨 tile 相邻，按方向枚举 L2 的 out/in 端口对，建立 [u, out_k, center] -> [v, in_k, center]，带宽 = L3.link_bandwidth。
+    """Build the extended bandwidth matrix (320x320 in the example).
+    L1 SWITCH center-port edges use L1.link_bandwidth; the center self-loop uses
+    center_in_bw + center_out_bw. Within each L3 tile, connect neighboring L2 nodes
+    using L2.link_bandwidth and the L1 center anchor. Across neighboring L3 tiles,
+    connect corresponding directional L2 out/in ports through the L1 anchors
+    using L3.link_bandwidth.
     """
     L = len(h.layers)
     assert L >= 1
     ext_size, coords2eid, _, anchor = _build_extended_indexer(h)
     bw = np.zeros((ext_size, ext_size), dtype=np.float64)
 
-    # 方便访问
+    # Convenient access.
     def with_coords(li: int, k: int) -> tuple[int, int]:
         topo = h.layers[li]
         M, N = topo.shape
         return (k // N, k % N)
 
-    # 遍历所有外层坐标笛卡尔积
+    # Iterate over the Cartesian product of all outer-layer coordinates.
     def iter_outer_coords():
         if L == 1:
             yield []
             return
         # L>=2
-        # 从外到内（不含 L1）
+        # Outer to inner (excluding L1).
         ranges = []
         for topo in h.layers[:-1]:
             Mx, Nx = topo.shape
             ranges.append([(r, c) for r in range(Mx) for c in range(Nx)])
-        # 笛卡尔积
+        # Cartesian product.
         def rec(idx, acc):
             if idx == len(ranges):
                 yield list(acc)
@@ -1125,7 +1119,7 @@ def build_extended_bandwidth_matrix(h: Hierarchy) -> np.ndarray:
     if h.layers[-1].kind == TopoKind.SWITCH:
         L1 = h.layers[-1]
         M1, N1 = L1.shape
-        # 对每个 (外层 L3/L2) 组合，建立 center <-> port
+        # Create center <-> port connections for each outer-layer (L3/L2) coordinate combination.
         outer_sizes = []
         for topo in h.layers[:-1]:
             Mx, Nx = topo.shape
@@ -1137,7 +1131,7 @@ def build_extended_bandwidth_matrix(h: Hierarchy) -> np.ndarray:
         )
         
         for outer in iter_outer_coords():
-            # 每个 L1 端口
+            # Each L1 port.
             for p in range(N1):  # M1==1
                 src_coords = list(outer) + [(0, p)]
                 cen_coords = list(outer) + [anchor]
@@ -1145,7 +1139,7 @@ def build_extended_bandwidth_matrix(h: Hierarchy) -> np.ndarray:
                 b = coords2eid(cen_coords)
                 bw[a, b] = max(bw[a, b], float(L1.link_bandwidth))
                 bw[b, a] = max(bw[b, a], float(L1.link_bandwidth))
-            # 中心自环
+            # Center self-loop.
             if center_bw > 0.0:
                 c = coords2eid(list(outer) + [anchor])
                 bw[c, c] = max(bw[c, c], center_bw)
@@ -1164,13 +1158,13 @@ def build_extended_bandwidth_matrix(h: Hierarchy) -> np.ndarray:
                 b = coords2eid(coords_b)
                 bw[a, b] = max(bw[a, b], float(L1.link_bandwidth))
                 
-    # L2: 层内相邻
+    # L2: intralayer adjacency.
     if L >= 2:
         L2 = h.layers[-2]
         if L2.kind in {TopoKind.MESH2D, TopoKind.TORUS2D, TopoKind.RING, TopoKind.CHAIN, TopoKind.MCHAIN_NRING, TopoKind.MRING_NCHAIN}:
             M2, N2 = L2.shape
             edges2 = _neighbors_2d(L2.kind, M2, N2)
-            # 遍历每个外层 L3 坐标
+            # Iterate over each outer-layer L3 coordinate.
             if L == 2:
                 outer3 = [()]
             else:
@@ -1209,7 +1203,7 @@ def build_extended_bandwidth_matrix(h: Hierarchy) -> np.ndarray:
                             b = coords2eid(coords_b)
                             bw[a, b] = max(bw[a, b], float(L2.link_bandwidth))
 
-    # L3: 层内相邻（通过 L2 端口对接）
+    # L3: intralayer adjacency (connected through L2 ports).
     if L >= 3:
         L3 = h.layers[-3]
         L2 = h.layers[-2]
@@ -1246,15 +1240,14 @@ def build_extended_bandwidth_matrix(h: Hierarchy) -> np.ndarray:
 
 
 def build_extended_traffic_matrix(tm: "TrafficMatrix", h: Hierarchy) -> tuple[np.ndarray, float]:
-    """
-    使用 states_coords 将所有链条的通信量叠加到扩展矩阵上。
-    返回 (traffic_matrix, max_hop_latency_states)。
-    若最内层为 SWITCH，则对每个出现的"进/出中心" hop，额外在中心自环上加同样的 bytes（统计中心自吞吐）。
+    """Accumulate all chain traffic into the extended matrix using states_coords.
+    Return (traffic_matrix, max_hop_latency_states). For an innermost SWITCH,
+    center-entry and center-exit hops also add their bytes to the center self-loop.
     """
     ext_size, coords2eid, _, anchor = _build_extended_indexer(h)
     traffic = np.zeros((ext_size, ext_size), dtype=np.float64)
 
-    # 生成所有链条（与 compute_stage_latency 相同入口）
+    # Generate all chains (using the same entry point as compute_stage_latency).
     flat = tm.counts
     nz = np.nonzero(flat)
     max_hop_latency = 0.0
@@ -1264,12 +1257,12 @@ def build_extended_traffic_matrix(tm: "TrafficMatrix", h: Hierarchy) -> tuple[np
             continue
         chains = h.route(s, d, val)
         for ch in chains:
-            # 遍历相邻快照
+            # Iterate over adjacent snapshots.
             hops_lat = 0.0
             for i in range(1, len(ch.states_coords)):
                 prev = ch.states_coords[i - 1]
                 cur = ch.states_coords[i]
-                # 找到最外层发生变化的层
+                # Find the outermost layer that changed.
                 layer_idx = None
                 for li, (a, b) in enumerate(zip(prev, cur)):
                     if a != b:
@@ -1277,13 +1270,13 @@ def build_extended_traffic_matrix(tm: "TrafficMatrix", h: Hierarchy) -> tuple[np
                         break
                 if layer_idx is None:
                     continue
-                # 端点映射
+                # Map endpoints.
                 a_eid = coords2eid(prev)
                 b_eid = coords2eid(cur)
                 traffic[a_eid, b_eid] += float(ch.bytes)
-                # 统计 hop latency
+                # Accumulate hop latency.
                 hops_lat += float(h.layers[layer_idx].hop_latency)
-                # 若最内层为 SWITCH 且涉及中心锚点，增加中心自环流量
+                # If the innermost layer is SWITCH and the center anchor is involved, add traffic to the center self-loop.
                 if layer_idx == len(h.layers) - 1 and h.layers[-1].kind == TopoKind.SWITCH:
                     if prev[-1] == anchor or cur[-1] == anchor:
                         c_eid = coords2eid(list(cur[:-1]) + [anchor])
@@ -1295,12 +1288,9 @@ def build_extended_traffic_matrix(tm: "TrafficMatrix", h: Hierarchy) -> tuple[np
 
 
 def compute_utilization(traffic: np.ndarray, bandwidth: np.ndarray, base_time: float) -> tuple[np.ndarray, float]:
-    """
-    计算：
-      - max_link_time = max(traffic_ij / bw_ij)
-      - total_time = base_time + max_link_time
-      - util_ij = traffic_ij / (total_time * bw_ij)
-    对 bw==0 的单元，util 记为 0（且不会参与 max_link_time）。
+    """Compute max_link_time=max(traffic_ij/bw_ij), total_time=base_time+max_link_time,
+    and util_ij=traffic_ij/(total_time*bw_ij). Zero-bandwidth entries have zero
+    utilization and are excluded from max_link_time.
     """
     eps = 0.0
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -1314,11 +1304,8 @@ def compute_utilization(traffic: np.ndarray, bandwidth: np.ndarray, base_time: f
 
 
 def compute_energy(traffic: np.ndarray, energy_per_bit: np.ndarray) -> tuple[np.ndarray, float]:
-    """
-    计算链路能耗：
-      - noc_energy_pj[i,j] = traffic[i,j] (bytes) * 8 * energy_per_bit[i,j] (pJ/bit)
-      - total_noc_energy_pj = sum(noc_energy_pj)
-    对 energy_per_bit==0 的单元，energy 记为 0。
+    """Compute per-link energy as traffic_bytes * 8 * energy_per_bit in pJ.
+    Return link energies and their sum. Zero energy-per-bit entries contribute zero.
     """
     noc_energy_pj = np.where(energy_per_bit > 0.0, traffic * 8.0 * energy_per_bit, 0.0)
     total_noc_energy_pj = float(np.sum(noc_energy_pj))
@@ -1326,11 +1313,8 @@ def compute_energy(traffic: np.ndarray, energy_per_bit: np.ndarray) -> tuple[np.
 
 
 def get_total_traffic_bytes(traffic_mats: list) -> float:
-    """
-    将多个已展开的 extended traffic 矩阵累加，返回所有物理链路的总字节数之和。
-
-    适用于 OpPerfStats._traffic_mats（append_traffic 时收集的各 collective 矩阵）。
-    若列表为空，返回 0.0。
+    """Sum bytes on all physical links across expanded traffic matrices.
+    Accept matrices collected in OpPerfStats._traffic_mats; return 0.0 for an empty list.
     """
     if not traffic_mats:
         return 0.0
@@ -1346,7 +1330,7 @@ def save_matrix_heatmap(matrix: np.ndarray, path: str, title: str, bar_label: st
         import numpy as np
     except Exception as e:  # noqa: BLE001
         raise ImportError("需要安装 matplotlib：pip install matplotlib") from e
-    # 透明-绿-黄-红 实现（保留为注释）：
+    # Transparent-green-yellow-red implementation (retained as comments):
     # from matplotlib.colors import LinearSegmentedColormap
     # data = matrix.astype(float, copy=True)
     # vmax = float(np.nanmax(data)) if data.size > 0 else 1.0
@@ -1372,17 +1356,17 @@ def save_matrix_heatmap(matrix: np.ndarray, path: str, title: str, bar_label: st
     # fig.savefig(path)
     # plt.close(fig)
 
-    # 经典热力图：与老的 save_heatmap 风格类似（viridis，无透明）
+    # Classic heatmap: similar to the old save_heatmap style (viridis, no transparency)
     data = matrix.astype(float, copy=True)
     fig = plt.figure(figsize=(6, 5), dpi=300)
     ax = fig.add_subplot(111)
     im = ax.imshow(data, cmap="viridis", origin="lower", interpolation="nearest")
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
-    # ==== 字体增强 BEGIN ====
-    cbar.set_label(bar_label, fontsize=16)           # 色条标题
-    cbar.ax.tick_params(labelsize=16)              # 色条刻度
-    cbar.ax.yaxis.get_offset_text().set_fontsize(16)  # colorbar 顶部科学计数法字体
+    # ==== Font enhancements BEGIN ====
+    cbar.set_label(bar_label, fontsize=16)           # Colorbar title
+    cbar.ax.tick_params(labelsize=16)              # Colorbar ticks
+    cbar.ax.yaxis.get_offset_text().set_fontsize(16)  # Font for scientific notation above the colorbar
 
     ax.set_title(title, fontsize=16)
     # ax.set_xlabel("dst (extended id)", fontsize=16)
@@ -1390,7 +1374,7 @@ def save_matrix_heatmap(matrix: np.ndarray, path: str, title: str, bar_label: st
     ax.set_xlabel("Destination", fontsize=16)
     ax.set_ylabel("Source", fontsize=16)
     ax.tick_params(axis="both", which="major", labelsize=16)
-    # ==== 字体增强 END ====
+    # ==== Font enhancements END ====
 
     fig.tight_layout()
     fig.savefig(path)
@@ -1402,15 +1386,12 @@ def export_extended_matrices_and_plots(
     h: Hierarchy,
     out_prefix: str = "extended"
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray, float]:
+    """Generate and save bandwidth, traffic, utilization, and energy matrix PDFs.
+    Traffic uses states_coords; total time is state-hop latency + max(traffic/bw).
+    Per-link energy is traffic * 8 * energy_per_bit.
+    Return (bw, traffic, util, total_time, noc_energy_pj, total_noc_energy_pj).
     """
-    生成并保存：
-      - 带宽矩阵 PDF
-      - 通信量矩阵 PDF（基于 states_coords）
-      - 利用率矩阵 PDF（总时间 = states hop latency + max(traffic/bw)）
-      - 能耗矩阵 PDF（pJ/link = traffic * 8 * energy_per_bit）
-    返回 (bw, traffic, util, total_time, noc_energy_pj, total_noc_energy_pj)。
-    """
-    from .noc_energy import build_extended_energy_matrix  # 延迟导入，避免循环依赖
+    from .noc_energy import build_extended_energy_matrix  # Lazy import to avoid circular dependencies
 
     bw = build_extended_bandwidth_matrix(h)
     traffic, hop_time = build_extended_traffic_matrix(tm, h)
@@ -1426,11 +1407,9 @@ def export_extended_matrices_and_plots(
     return bw, traffic, util, total_time, noc_energy_pj, total_noc_energy_pj
 
 def build_extended_traffic_matrix_switch_only(tm: "TrafficMatrix", h: Hierarchy) -> tuple[np.ndarray, float]:
-    """
-    基于 states_coords 叠加流量到"多层均为 SWITCH"的扩展坐标系。
-    与原版本不同点：
-      - 扩展索引器对每一层都有锚点；当某一步跨过某层的中心（prev[li] 或 cur[li] 为 (-1,-1)）时，
-        在该层中心自环上也累加同样的 bytes（统计中心吞吐）。
+    """Accumulate states_coords traffic in an all-switch extended coordinate system.
+    Every level has a center anchor. A hop entering or leaving a level's center
+    also adds the same bytes to its center self-loop to account for center throughput.
     """
     for topo in h.layers:
         if topo.kind != TopoKind.SWITCH:
@@ -1453,23 +1432,23 @@ def build_extended_traffic_matrix_switch_only(tm: "TrafficMatrix", h: Hierarchy)
             for i in range(1, len(ch.states_coords)):
                 prev = ch.states_coords[i - 1]
                 cur  = ch.states_coords[i]
-                # 找到最外层发生变化的层
+                # Find the outermost layer that changed.
                 layer_idx = None
                 for li, (a, b) in enumerate(zip(prev, cur)):
                     if a != b:
                         layer_idx = li; break
                 if layer_idx is None:
                     continue
-                # 规范化坐标：仅保留 layer_idx 层的实际坐标，其余层一律置为锚点。
-                # 这与 build_extended_bandwidth_matrix_switch_only 的坐标约定一致，
-                # 确保 traffic[a,b] 和 bw[a,b] 对齐同一物理链路条目。
+                # Normalize coordinates: retain actual coordinates only in layer layer_idx; set all other layers to their anchors.
+                # This matches the coordinate convention in build_extended_bandwidth_matrix_switch_only,
+                # ensuring traffic[a,b] and bw[a,b] refer to the same physical link entry.
                 L = len(h.layers)
                 prev_norm = [anchors[li] if li != layer_idx else prev[li] for li in range(L)]
                 cur_norm  = [anchors[li] if li != layer_idx else cur[li]  for li in range(L)]
                 a_eid = coords2eid(prev_norm)
                 b_eid = coords2eid(cur_norm)
                 traffic[a_eid, b_eid] += float(ch.bytes)
-                # hop latency 叠加
+                # Accumulate hop latency.
                 hops_lat += float(h.layers[layer_idx].hop_latency)
 
             if hops_lat > max_hop_latency:
@@ -1479,15 +1458,9 @@ def build_extended_traffic_matrix_switch_only(tm: "TrafficMatrix", h: Hierarchy)
 
 
 def _build_extended_indexer_switch_only(h: Hierarchy):
-    """
-    为每一层（外->内）都是 SWITCH 的层级构建扩展索引器：
-      - 每一层都追加一个"中心锚点"坐标 (-1,-1)
-      - 返回：
-          ext_size
-          coords_to_ext_id(coords)
-          ext_id_to_coords(eid)
-          anchors: List[Tuple[int,int]]  # 每层的锚点，均为 (-1,-1)
-    均假定所有层都是 TopoKind.SWITCH。
+    """Build an extended indexer for a hierarchy containing only SWITCH levels.
+    Add a center anchor (-1,-1) at every level, ordered outermost to innermost.
+    Return ext_size, coords_to_ext_id, ext_id_to_coords, and the per-level anchors.
     """
     assert len(h.layers) >= 1, "hierarchy 至少一层"
     for topo in h.layers:
@@ -1495,11 +1468,11 @@ def _build_extended_indexer_switch_only(h: Hierarchy):
             raise ValueError("本索引器仅支持所有层均为 SWITCH 的情形")
 
     L = len(h.layers)
-    base_sizes = [(topo.shape[0] * topo.shape[1]) for topo in h.layers]  # 对 switch 即为端口数 N
-    # 每层都 +1 作为中心锚点（-1,-1）
+    base_sizes = [(topo.shape[0] * topo.shape[1]) for topo in h.layers]  # For a switch, this is the number of ports N.
+    # Add 1 to each layer for the center anchor (-1,-1).
     ext_layer_sizes = [s + 1 for s in base_sizes]
 
-    # 计算 stride（内->外）
+    # Compute stride (inner->outer).
     strides = [1] * L
     for i in range(L - 2, -1, -1):
         strides[i] = strides[i + 1] * ext_layer_sizes[i + 1]
@@ -1509,7 +1482,7 @@ def _build_extended_indexer_switch_only(h: Hierarchy):
         ext_size *= s
 
     def _coords_to_k(li: int, rc: tuple[int, int]) -> int:
-        """把 (r,c) 映射为该层的线性索引；(-1,-1) 是追加的中心，索引==base_size。"""
+        """Map (r,c) to a linear index within this layer; (-1,-1) is the appended center, with index == base_size."""
         topo = h.layers[li]
         M, N = topo.shape
         if rc == (-1, -1):
@@ -1544,17 +1517,14 @@ def _build_extended_indexer_switch_only(h: Hierarchy):
 
 
 def build_extended_bandwidth_matrix_switch_only(h: Hierarchy) -> np.ndarray:
+    """Build the extended bandwidth matrix for a three-level all-switch hierarchy.
+    At each level, connect its center anchor (-1,-1) bidirectionally to physical
+    ports (0,p), using link_bandwidth. Combine duplicate edge capacities by maximum,
+    not summation. If center bandwidths are set, the center self-loop uses
+    center_in_bw + center_out_bw, also combined by maximum. Other levels use anchor
+    coordinates so all edges share one extended coordinate system.
     """
-    构建"只支持三层均为 SWITCH"的扩展带宽矩阵。
-    建模方式（与 L1 的旧逻辑一致，推广到任意层）：
-      - 对每一层 li：
-          * 给该层的"中心锚点 (-1,-1)" 与 "每个物理端口 (0,p)"之间建立双向边，
-            边带宽 = layers[li].link_bandwidth（取 max 累积，不求和）
-          * 如果设置了 center_in/out_bw，则在该层中心自环上写入
-            bw = center_in_bw + center_out_bw（同样取 max）
-      - 更内层/更外层坐标用"锚点 (-1,-1)"占位，使得边位于统一的扩展坐标系。
-    """
-    # 校验
+    # Validate.
     for topo in h.layers:
         if topo.kind != TopoKind.SWITCH:
             raise ValueError("build_extended_bandwidth_matrix_switch_only 仅支持 SWITCH 层")
@@ -1563,18 +1533,21 @@ def build_extended_bandwidth_matrix_switch_only(h: Hierarchy) -> np.ndarray:
     ext_size, coords2eid, _, anchors = _build_extended_indexer_switch_only(h)
     bw = np.zeros((ext_size, ext_size), dtype=np.float64)
 
-    # 枚举"外层坐标"的笛卡尔积（到 li-1），li 及其内层均使用锚点占位（或在 li 层枚举端口）
+    # Enumerate the Cartesian product of "outer-layer coordinates" (through li-1); use anchor placeholders for li and inner layers (or enumerate ports at li)
     def iter_prefix_coords(upto_exclusive: int):
-        """返回所有 0..upto_exclusive-1 层的坐标组合（每层只会是 (-1,-1) 或端口坐标？对 SWITCH 用端口坐标只在当前层）"""
+        """Return coordinate combinations for layers 0 through upto_exclusive-1.
+        (Does each layer contain only (-1,-1) or port coordinates? For SWITCH,
+        port coordinates are used only at the current layer.)
+        """
         if upto_exclusive <= 0:
             yield []
             return
         ranges = []
         for li in range(upto_exclusive):
             topo = h.layers[li]
-            # 在"外层前缀"我们只放置锚点，避免指数爆炸；路由时会具体化
+            # Place only anchors in the "outer-layer prefix" to avoid exponential growth; resolve them during routing
             ranges.append([anchors[li]])
-        # 笛卡尔积
+        # Cartesian product.
         def rec(idx, acc):
             if idx == len(ranges):
                 yield list(acc); return
@@ -1586,23 +1559,23 @@ def build_extended_bandwidth_matrix_switch_only(h: Hierarchy) -> np.ndarray:
 
     for li in range(L):
         topo = h.layers[li]
-        M, N = topo.shape  # 对 switch，M=1, N=端口数
+        M, N = topo.shape  # For a switch, M=1, N=number of ports.
         center_loop_bw = float(
             (topo.switch_center_in_bw or 0.0) + (topo.switch_center_out_bw or 0.0)
         )
-        # 外层前缀坐标（0..li-1），都固定用锚点；内层后缀（li+1..）也固定锚点。
+        # Fix outer-prefix coordinates (0..li-1) and inner-suffix coordinates (li+1..) at their anchors.
         for prefix in iter_prefix_coords(li):
-            # 组装 "该层中心节点的完整扩展坐标"
+            # Assemble "the full extended coordinates of this layer's central node"
             center_coords = list(prefix) + [anchors[li]] + anchors[li+1:]
             center_eid = coords2eid(center_coords)
-            # 该层每个端口与中心的双向带宽边
+            # Bidirectional bandwidth edges between each port and the center of this layer.
             for p in range(N):  # M==1
                 port_coords = list(prefix) + [(0, p)] + anchors[li+1:]
                 port_eid = coords2eid(port_coords)
-                # 双向
+                # Bidirectional.
                 bw[port_eid, center_eid] = max(bw[port_eid, center_eid], float(topo.link_bandwidth))
                 bw[center_eid, port_eid] = max(bw[center_eid, port_eid], float(topo.link_bandwidth))
-            # 中心自环
+            # Center self-loop.
             if center_loop_bw > 0.0:
                 bw[center_eid, center_eid] = max(bw[center_eid, center_eid], center_loop_bw)
 
@@ -1613,16 +1586,11 @@ def export_extended_matrices_and_plots_switch_only(
     h: Hierarchy,
     out_prefix: str = "extended_switch_only"
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray, float]:
+    """Export all-switch bandwidth, traffic, utilization, and energy matrix PNGs.
+    Per-link energy is traffic * 8 * energy_per_bit in pJ.
+    Return (bw, traffic, util, total_time, noc_energy_pj, total_noc_energy_pj).
     """
-    只支持所有层均为 SWITCH 的导出版本。
-    生成并保存：
-      - 带宽矩阵 PNG
-      - 通信量矩阵 PNG
-      - 利用率矩阵 PNG
-      - 能耗矩阵 PNG（pJ/link = traffic * 8 * energy_per_bit）
-    返回 (bw, traffic, util, total_time, noc_energy_pj, total_noc_energy_pj)。
-    """
-    from .noc_energy import build_extended_energy_matrix_switch_only  # 延迟导入，避免循环依赖
+    from .noc_energy import build_extended_energy_matrix_switch_only  # Lazy import to avoid circular dependencies
 
     bw = build_extended_bandwidth_matrix_switch_only(h)
     traffic, hop_time = build_extended_traffic_matrix_switch_only(tm, h)
@@ -1641,21 +1609,18 @@ def get_extend_max_routes_switch_only(
     tm: "TrafficMatrix",
     h: Hierarchy,
 ) -> tuple[float, float, float]:
-    '''
-    仅支持所有层均为 SWITCH：
-      - 使用已构建的扩展 traffic（states_coords 叠加）作为真值
-      - 按需在 traffic>0 的位置补带宽，带宽所属层 = "最外层发生变化的层"
-        * i==j（自环）：该层 center 自环带宽 = center_in_bw + center_out_bw
-        * i!=j：带宽 = h.layers[layer_idx].link_bandwidth
-      - 返回 (hop_time, ext_max, overall_time)
-    '''
-    # 1) 检查 & traffic / hop_time
+    """Evaluate an all-switch hierarchy using expanded states_coords traffic.
+    Fill missing bandwidth where traffic is positive, assigning the outermost
+    changed level. Self-loops use center_in_bw + center_out_bw; other edges use
+    that level's link_bandwidth. Return (hop_time, ext_max, overall_time).
+    """
+    # 1) Validate and compute traffic / hop_time.
     if not all(t.kind == TopoKind.SWITCH for t in h.layers):
         raise ValueError("get_extend_max_routes_switch_only 仅支持所有层均为 SWITCH")
 
     traffic, hop_time = build_extended_traffic_matrix_switch_only(tm, h)
 
-    # 2) 按需补带宽：只给 traffic 非零的位置赋带宽，且带宽归属按"最外层发生变化的层"
+    # 2) Fill in bandwidth as needed: assign it only where traffic is nonzero, with bandwidth ownership determined by "the outermost layer that changes"
     _, _, extid2coords, _anchors = _build_extended_indexer_switch_only(h)
     bw = np.zeros_like(traffic, dtype=np.float64)
 
@@ -1668,7 +1633,7 @@ def get_extend_max_routes_switch_only(
         ci = extid2coords(int(i))
         cj = extid2coords(int(j))
 
-        # 找"最外层发生变化的层"layer_idx
+        # Find "the outermost layer that changes", layer_idx
         layer_idx = None
         for li, (a, b) in enumerate(zip(ci, cj)):
             if a != b:
@@ -1676,30 +1641,30 @@ def get_extend_max_routes_switch_only(
                 break
 
         if layer_idx is None:
-            # i==j: 自环。这个自环必然是某一层的 center 自环，
-            # 我们根据坐标里为 (-1,-1) 的层给出该层的 center_in+center_out。
+            # i==j: a self-loop, which must be a layer's center self-loop.
+            # Use center_in+center_out from the layer whose coordinates are (-1,-1).
             loop_bw = 0.0
             for li, rc in enumerate(ci):
                 if rc == (-1, -1):
                     topo = h.layers[li]
                     loop_bw = max(loop_bw, float((topo.switch_center_in_bw or 0.0) + (topo.switch_center_out_bw or 0.0)))
-            # 防守：如果没有任何层是 (-1,-1)，则不写入（或写 0）
+            # Guard: if no layer has coordinates (-1,-1), do not write an entry (or write 0).
             if loop_bw > 0.0:
                 bw[i, j] = max(bw[i, j], loop_bw)
             continue
 
-        # 非自环：这一跳就是 layer_idx 层的 hop，带宽取该层的 link_bandwidth
+        # Non-self-loop: this hop belongs to layer_idx; use that layer's link_bandwidth.
         topo = h.layers[layer_idx]
         hop_bw = float(topo.link_bandwidth)
         if hop_bw > 0.0:
             bw[i, j] = max(bw[i, j], hop_bw)
 
-    # 3) 计算瓶颈时间和总时间
+    # 3) Compute the bottleneck time and total time.
     with np.errstate(divide='ignore', invalid='ignore'):
         ratio = np.where(bw > 0.0, traffic / bw, -np.inf)
 
     if ratio.size == 0 or not np.isfinite(np.max(ratio)):
-        # 流量矩阵为空（ep=1 等无跨节点通信的合法情况），直接返回 0
+        # Return 0 directly for an empty traffic matrix (valid cases with no inter-node communication, such as ep=1)
         log.debug("[extended/switch-only] traffic matrix is empty (no inter-node comm); returning (0,0,0)")
         return 0.0, 0.0, 0.0
 
@@ -1707,7 +1672,7 @@ def get_extend_max_routes_switch_only(
     i_star, j_star = divmod(flat_idx, ratio.shape[1])
     ext_max = float(ratio[i_star, j_star]) if np.isfinite(ratio[i_star, j_star]) else 0.0
 
-    # 诊断打印
+    # Print diagnostics.
     src_coords = extid2coords(int(i_star))
     dst_coords = extid2coords(int(j_star))
     log.info("[extended/switch-only] max_link_time:")
@@ -1724,17 +1689,14 @@ def get_extend_max_routes(
     tm: "TrafficMatrix",
     h: Hierarchy,
 ) -> tuple[float, float, float]:
-    """
-    打印流水线中 max link time 的分解：
-      1) 扩展路径（export_extended_matrices_and_plots）：max(traffic/bw)
-    """
+    """Print the maximum link-time breakdown for the extended path, max(traffic/bw)."""
     log.info("Diagnosing max link time")
 
     if all(t.kind == TopoKind.SWITCH for t in h.layers):
         hop_time, ext_max, overall_time = get_extend_max_routes_switch_only(tm, h)
         return hop_time, ext_max, overall_time
     else:
-        # 扩展矩阵
+        # Extended matrix.
         bw = build_extended_bandwidth_matrix(h)
         traffic, hop_time = build_extended_traffic_matrix(tm, h)
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -1743,7 +1705,7 @@ def get_extend_max_routes(
             flat_idx = int(np.nanargmax(ratio))
             i, j = divmod(flat_idx, ratio.shape[1])
             ext_max = float(ratio[i, j]) if np.isfinite(ratio[i, j]) else 0.0
-            # 还原扩展坐标
+            # Restore extended coordinates.
             ext_size, _, extid2coords, anchor = _build_extended_indexer(h)
             src_coords = extid2coords(i)
             dst_coords = extid2coords(j)
@@ -1766,27 +1728,24 @@ def get_extend_max_routes_with_traffic(
     h: Hierarchy,
     dump_perf_log: bool = True,
 ) -> tuple[float, float, float, np.ndarray | None]:
-    """
-    返回 (hop_time, ext_max, overall_time, traffic)，可直接接入 OpPerfStats：
+    """Return (hop_time, ext_max, overall_time, traffic) for direct OpPerfStats use.
+
+    Example:
         hop_time, ext_max, overall_time, traffic = get_extend_max_routes_with_traffic(tm, h)
         stats.append_traffic(traffic, link_time_s=ext_max, hop_time_s=hop_time, comm_time_s=overall_time)
 
-    其中：
-        hop_time     → hop_time_s    （交换机 hop latency 之和）
-        ext_max      → link_time_s   （瓶颈链路传输时间）
-        overall_time → comm_time_s   （总通信时间 = hop + link）
-
-    dump_perf_log=False（默认）：简单路径，直接组合 get_extend_max_routes + build traffic，
-                                无额外诊断 log。
-    dump_perf_log=True         ：完整内联路径，traffic 只构建一次，并打印详细诊断 log。
+    hop_time is accumulated switch-hop latency; ext_max is bottleneck transfer time;
+    overall_time is their sum. The default dump_perf_log=False combines the ordinary
+    route calculation with traffic construction without diagnostics. With True,
+    the inlined diagnostic path builds traffic only once and logs detailed results.
     """
     if not dump_perf_log:
-        # ── 无 dump_perf_log ──────────────────────────────────────────────
+        # -- Without dump_perf_log ------------------------------------------------
         hop_time, ext_max, overall_time = get_extend_max_routes_with_traffic(tm, h)
 
         return float(hop_time), float(ext_max), float(overall_time), None
 
-    # ── 完整路径：内联计算，traffic 只构建一次，打印详细诊断 log ──────────────
+    # -- Full path: compute inline, build traffic only once, and print detailed diagnostic logs --
     if all(t.kind == TopoKind.SWITCH for t in h.layers):
         traffic, hop_time = build_extended_traffic_matrix_switch_only(tm, h)
 
@@ -1863,11 +1822,8 @@ def diagnose_max_link_time(
     tm: "TrafficMatrix",
     h: Hierarchy,
 ) -> None:
-    """
-    打印两条流水线中 max link time 的分解：
-      1) 扩展路径（export_extended_matrices_and_plots）：max(traffic/bw)
-    """
-    # 扩展矩阵
+    """Print the maximum link-time breakdown for the extended path, max(traffic/bw)."""
+    # Extended matrix.
     bw = build_extended_bandwidth_matrix(h)
     traffic, hop_time = build_extended_traffic_matrix(tm, h)
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -1876,7 +1832,7 @@ def diagnose_max_link_time(
         flat_idx = int(np.nanargmax(ratio))
         i, j = divmod(flat_idx, ratio.shape[1])
         ext_max = float(ratio[i, j]) if np.isfinite(ratio[i, j]) else 0.0
-        # 还原扩展坐标
+        # Restore extended coordinates.
         ext_size, _, extid2coords, anchor = _build_extended_indexer(h)
         src_coords = extid2coords(i)
         dst_coords = extid2coords(j)
@@ -1894,9 +1850,8 @@ def get_longest_states_path(
     tm: "TrafficMatrix",
     h: Hierarchy,
 ) -> tuple[list[list[tuple[int, int]]], float, tuple[int, int]]:
-    """
-    基于 states_coords，找出 hop 延迟之和最大的那条链（最长路径，按层 hop_latency 求和）。
-    返回 (best_path_states, best_hop_time, (src_idx, dst_idx))。
+    """Find the states_coords chain with the largest sum of per-layer hop latencies.
+    Return (best_path_states, best_hop_time, (src_idx, dst_idx)).
     """
     flat = tm.counts
     nz = np.nonzero(flat)
@@ -1936,13 +1891,13 @@ def print_longest_states_path(
     tm: "TrafficMatrix",
     h: Hierarchy,
 ) -> None:
-    """打印按 hop 延迟之和最长的路径（基于 states_coords 的相邻快照）。"""
+    """Print the path with the largest hop-latency sum using adjacent states_coords snapshots."""
     path, hop_time, pair = get_longest_states_path(tm, h)
     if not path:
         log.info("[longest] no valid paths")
         return
     log.info("[longest] src=%s dst=%s hop_time_s=%.6g steps=%d", pair[0], pair[1], hop_time, max(0, len(path) - 1))
-    # 整体起点/终点的 coords 视图
+    # coords view of the overall source/destination.
     log.info("  start_coords: %s", path[0])
     log.info("  dst_coords:   %s", path[-1])
 
@@ -1950,7 +1905,7 @@ def print_longest_states_path(
     for i in range(1, len(path)):
         prev = path[i - 1]
         cur = path[i]
-        # 找到最外层发生变化的层
+        # Find the outermost layer that changed.
         layer_idx = None
         for li, (a, b) in enumerate(zip(prev, cur)):
             if a != b:

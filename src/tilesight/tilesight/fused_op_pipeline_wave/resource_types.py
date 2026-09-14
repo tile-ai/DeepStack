@@ -4,39 +4,40 @@ from typing import Optional, Tuple, Dict
 
 @dataclass
 class PerIterationResources:
-    """一次内层循环迭代的资源量（如 GEMM 的一次 K-tile）。
+    """Resource quantities for one inner-loop iteration, such as one GEMM K-tile.
 
-    对于 element-wise op（无内层循环），表示整个 tile 的资源量。
-    各 mem 层之间可 overlap（取 max），但 load 整体与 compute 之间
-    是否 overlap 取决于 stage_num（由 pipeline_overlap 决定）。
+    For an element-wise operation without an inner loop, these quantities describe
+    the entire tile. Different memory levels can overlap (take the maximum),
+    but whether the overall load overlaps with compute depends on stage_num,
+    as determined by pipeline_overlap.
     """
-    ddr_io: float = 0.0         # DDR 流量 (bytes)
-    l2_io: float = 0.0          # L2 流量 (bytes)
-    l1_5_io: float = 0.0        # L1.5 流量 (bytes), 0 if no L1.5
-    smem_io: float = 0.0        # SMEM 读写 (bytes)
-    compute_flops: float = 0.0  # 计算量 (FLOPs)
+    ddr_io: float = 0.0         # DDR traffic (bytes)
+    l2_io: float = 0.0          # L2 traffic (bytes)
+    l1_5_io: float = 0.0        # L1.5 traffic (bytes), 0 if no L1.5
+    smem_io: float = 0.0        # SMEM reads and writes (bytes)
+    compute_flops: float = 0.0  # Compute work (FLOPs)
 
 
 @dataclass
 class PrologueEpilogueResources:
-    """Pipeline prologue (填充) 和 epilogue (排空+store) 的资源。
+    """Resources for the pipeline prologue (fill) and epilogue (drain + store).
 
-    prologue: pipeline 填充阶段，只有 load，无 compute。
-        持续 (stage_num - 1) 次迭代。
-    epilogue: pipeline 排空阶段，只有 compute，无 load。
-        持续 (stage_num - 1) 次迭代 + 最终 store。
-    当 stage_num=1 时，prologue 和 epilogue 均为 0。
+    prologue: Pipeline fill phase, with loads only and no compute.
+        Lasts (stage_num - 1) iterations.
+    epilogue: Pipeline drain phase, with compute only and no loads.
+        Lasts (stage_num - 1) iterations plus the final store.
+    When stage_num=1, both prologue and epilogue are zero.
     """
-    # Prologue 资源（pipeline 填充）
+    # Prologue resources (pipeline fill)
     prologue_ddr_io: float = 0.0
     prologue_l2_io: float = 0.0
     prologue_l1_5_io: float = 0.0
     prologue_smem_io: float = 0.0
 
-    # Epilogue 资源（pipeline 排空）
+    # Epilogue resources (pipeline drain)
     epilogue_compute_flops: float = 0.0
 
-    # Output store 资源（epilogue 最后的写回）
+    # Output store resources (final writeback in the epilogue)
     store_ddr_io: float = 0.0
     store_l2_io: float = 0.0
     store_l1_5_io: float = 0.0   # typically 0 (store bypasses L1.5)
@@ -45,39 +46,39 @@ class PrologueEpilogueResources:
 
 @dataclass
 class TileResources:
-    """一个 tile 的完整资源描述，按阶段分解。
+    """Complete resource description of a tile, broken down by phase.
 
-    对于 GEMM: num_iterations = gridK, stage_num = software pipeline depth
-    对于 element-wise: num_iterations = 1, stage_num = 1
-    对于 reduce: num_iterations = reduction_iters, stage_num 可 >= 1
+    For GEMM: num_iterations = gridK, stage_num = software pipeline depth.
+    For element-wise operations: num_iterations = 1, stage_num = 1.
+    For reduce: num_iterations = reduction_iters, stage_num may be >= 1.
     """
     per_iter: PerIterationResources
     prologue_epilogue: PrologueEpilogueResources
-    num_iterations: int          # 内层循环次数 (gridK for matmul)
-    stage_num: int               # 软件流水线深度
-    smem_footprint: float        # bytes, 用于 occupancy 计算
-    reg_footprint: float         # 寄存器数 (per warp, 4-byte units)
-    warps_per_block: int         # 每个 thread block 的 warp 数
-    grids: Tuple[int, ...]       # 空间维度 (gridM, gridN) 等
+    num_iterations: int          # Inner loop iteration count (gridK for matmul)
+    stage_num: int               # Software pipeline depth
+    smem_footprint: float        # bytes, used to calculate occupancy
+    reg_footprint: float         # Register count (per warp, 4-byte units)
+    warps_per_block: int         # Warps per thread block
+    grids: Tuple[int, ...]       # Spatial dimensions (gridM, gridN), etc.
 
 
 @dataclass
 class PipelineDetail:
-    """Pipeline 各阶段的时间分解，用于 wave model 精细建模。"""
-    prologue_time: float = 0.0          # prologue 总时间 (秒)
-    steady_time_per_iter: float = 0.0   # steady state 每迭代时间 (秒)
-    epilogue_time: float = 0.0          # epilogue 总时间 (秒)
-    mem_time_per_iter: float = 0.0      # 每迭代 mem 时间 (秒)
-    compute_time_per_iter: float = 0.0  # 每迭代 compute 时间 (秒)
+    """Time breakdown by pipeline phase for detailed wave modeling."""
+    prologue_time: float = 0.0          # Total prologue time (seconds)
+    steady_time_per_iter: float = 0.0   # Steady-state time per iteration (seconds)
+    epilogue_time: float = 0.0          # Total epilogue time (seconds)
+    mem_time_per_iter: float = 0.0      # Memory time per iteration (seconds)
+    compute_time_per_iter: float = 0.0  # Compute time per iteration (seconds)
 
 
 @dataclass
 class PipelineResult:
-    """Pipeline overlap 分析的完整输出。"""
-    per_tile_latency: float      # 单 tile 延迟 (秒)
-    total_latency: float         # 全 kernel 延迟 (秒), 包含 wave 效应
+    """Complete output of pipeline overlap analysis."""
+    per_tile_latency: float      # Single-tile latency (seconds)
+    total_latency: float         # Full-kernel latency (seconds), including wave effects
 
-    # 利用率
+    # Utilization
     ddr_util: float = 0.0
     l2_util: float = 0.0
     l2_hit_rate: float = 0.0
@@ -88,9 +89,9 @@ class PipelineResult:
     smem_footprint: float = 0.0
     reg_footprint: float = 0.0
 
-    # Occupancy & wave 信息
+    # Occupancy & wave information
     tiles_per_sm: int = 1
     waves: float = 1.0
 
-    # Pipeline 各阶段时间（用于调试/可视化）
+    # Times for each pipeline stage (for debugging/visualization)
     pipeline_detail: Optional[PipelineDetail] = None

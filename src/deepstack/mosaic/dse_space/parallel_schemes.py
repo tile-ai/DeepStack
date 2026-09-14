@@ -35,7 +35,7 @@ Labels = Tuple[str, str, str, str, str, str]
 DEFAULT_LABELS: Labels = ("tp", "ep", "sp", "cp", "dp", "pp")
 
 def _compositions(n: int, k: int):
-    """生成所有 k 元非负整数组合，和为 n（stars and bars）。"""
+    """Generate all k-tuples of nonnegative integers that sum to n (stars and bars)."""
     if k <= 0:
         return
     if n == 0:
@@ -52,10 +52,8 @@ def _compositions(n: int, k: int):
 
 def all_parallel_schemes_list(instance_num: int,
                               labels: Labels = DEFAULT_LABELS) -> List[Dict[str, int]]:
-    """
-    返回所有 (tp, ep, sp, cp, dp, pp) 方案的列表，乘积等于 instance_num。
-    - 仅用 sympy.factorint
-    - 即使多个槽得到相同数值（如都为 2 的幂），也不会出现重复结果
+    """Return distinct (tp, ep, sp, cp, dp, pp) tuples whose product is instance_num.
+    Use sympy.factorint; repeated factor values do not produce duplicate schemes.
     """
     if instance_num < 1:
         raise ValueError("instance_num 必须是正整数")
@@ -86,9 +84,8 @@ def all_parallel_schemes_list(instance_num: int,
 
 def all_parallel_schemes(instance_num: int,
                          labels: Labels = DEFAULT_LABELS) -> List[ParallelScheme]:
-    """
-    返回所有 ParallelScheme(tp, ep, sp, cp, dp, pp, fsdp=...) 的组合。
-    每个方案会生成两个版本：fsdp=False 和 fsdp=True。
+    """Return all ParallelScheme(tp, ep, sp, cp, dp, pp, fsdp=...) combinations.
+    Emit both fsdp=False and fsdp=True for each scheme.
     """
     if instance_num < 1:
         raise ValueError("instance_num 必须是正整数")
@@ -97,7 +94,7 @@ def all_parallel_schemes(instance_num: int,
 
     prime_powers = factorint(instance_num)  # {p: e}
     if not prime_powers:
-        # instance_num == 1 的情况
+        # Case where instance_num == 1.
         return [
             ParallelScheme(tp=1, ep=1, sp=1, cp=1, dp=1, pp=1, fsdp=f)
             for f in (False, True)
@@ -119,7 +116,7 @@ def all_parallel_schemes(instance_num: int,
                 if exp:
                     slot_vals[j] *= p ** exp
 
-        # 对每个组合生成 fsdp=True / False 两个版本
+        # Generate two versions for each combination: fsdp=True / False.
         kwargs = dict(zip(labels, slot_vals))
         for fsdp_value in (False, True):
             schemes.append(ParallelScheme(**kwargs, fsdp=fsdp_value))
@@ -132,11 +129,8 @@ def filter_parallel_schemes_by_max(schemes: List[ParallelScheme],
                                    max_value: int,
                                    *,
                                    valid_labels: Labels = DEFAULT_LABELS) -> List[ParallelScheme]:
-    """
-    过滤 ParallelScheme 列表，使给定维度 `label` 的取值 <= `max_value`。
-
-    - `label` 必须是 {tp, ep, sp, cp, dp, pp} 之一
-    - `max_value` 必须是正整数
+    """Keep schemes whose selected dimension label is at most max_value.
+    label must be one of tp, ep, sp, cp, dp, pp; max_value must be a positive integer.
     """
     if label not in valid_labels:
         raise ValueError(f"label 必须是 {valid_labels} 之一, 但得到: {label}")
@@ -152,11 +146,8 @@ def filter_parallel_schemes_by_product_max(schemes: List[ParallelScheme],
                                            max_product: int,
                                            *,
                                            valid_labels: Labels = DEFAULT_LABELS) -> List[ParallelScheme]:
-    """
-    过滤 ParallelScheme 列表，使给定两个维度 `label1` 与 `label2` 的乘积 <= `max_product`。
-
-    - `label1` 与 `label2` 必须是 {tp, ep, sp, cp, dp, pp} 之一
-    - `max_product` 必须是正整数
+    """Keep schemes where label1 * label2 is at most max_product.
+    Both labels must be among tp, ep, sp, cp, dp, pp; max_product must be a positive integer.
     """
     if label1 not in valid_labels:
         raise ValueError(f"label1 必须是 {valid_labels} 之一, 但得到: {label1}")
@@ -172,9 +163,8 @@ def filter_parallel_schemes_by_product_max(schemes: List[ParallelScheme],
 
 
 def filter_illegal_fsdp(schemes: List[ParallelScheme]) -> List[ParallelScheme]:
-    """
-    过滤非法的 FSDP 组合：当 dp == 1 时，仅保留 fsdp == False 的方案；
-    其它情况下（dp != 1）保持不变。
+    """Reject FSDP schemes when dp == 1; retain only fsdp=False in that case.
+    Leave schemes with dp != 1 unchanged.
     """
     return [s for s in schemes if not (s.dp == 1 and s.fsdp is True)]
 
@@ -193,11 +183,11 @@ def gen_correlation_parallel_schemes(max_product: int):
     tp_scheme_list=[]
     current_tp = tp_base_scheme.tp
     while True:
-        # 计算当前并行度的乘积
+        # Compute the product of the current parallelism degrees.
         product = current_tp * tp_base_scheme.ep * tp_base_scheme.sp * tp_base_scheme.cp * tp_base_scheme.dp * tp_base_scheme.pp
         if product > max_product:
             break
-        # 追加新的scheme
+        # Append the new scheme.
         tp_scheme_list.append(ParallelScheme(
             tp=current_tp,
             ep=tp_base_scheme.ep,
@@ -214,11 +204,11 @@ def gen_correlation_parallel_schemes(max_product: int):
     ep_scheme_list=[]
     current_ep = ep_base_scheme.ep
     while True:
-        # 计算当前并行度的乘积
+        # Compute the product of the current parallelism degrees.
         product = current_ep * ep_base_scheme.tp * ep_base_scheme.sp * ep_base_scheme.cp * ep_base_scheme.dp * ep_base_scheme.pp
         if product > max_product:
             break
-        # 追加新的scheme
+        # Append the new scheme.
         ep_scheme_list.append(ParallelScheme(
             tp=ep_base_scheme.tp,
             ep=current_ep,
@@ -235,7 +225,7 @@ def gen_correlation_parallel_schemes(max_product: int):
     sp_scheme_list = []
     current_sp = all_base_scheme.sp
     while True:
-        # 计算当前并行度的乘积
+        # Compute the product of the current parallelism degrees.
         product = (
             all_base_scheme.tp
             * all_base_scheme.ep
@@ -264,7 +254,7 @@ def gen_correlation_parallel_schemes(max_product: int):
     cp_scheme_list = []
     current_cp = all_base_scheme.cp
     while True:
-        # 计算当前并行度的乘积
+        # Compute the product of the current parallelism degrees.
         product = (
             all_base_scheme.tp
             * all_base_scheme.ep
@@ -293,7 +283,7 @@ def gen_correlation_parallel_schemes(max_product: int):
     dp_scheme_list = []
     current_dp = all_base_scheme.dp
     while True:
-        # 计算当前并行度的乘积
+        # Compute the product of the current parallelism degrees.
         product = (
             all_base_scheme.tp
             * all_base_scheme.ep
@@ -322,7 +312,7 @@ def gen_correlation_parallel_schemes(max_product: int):
     pp_scheme_list = []
     current_pp = all_base_scheme.pp
     while True:
-        # 计算当前并行度的乘积
+        # Compute the product of the current parallelism degrees.
         product = (
             all_base_scheme.tp
             * all_base_scheme.ep

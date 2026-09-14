@@ -228,7 +228,6 @@ def test_synthetic_energy_path_does_not_load_binary_provider() -> None:
             "mosaic.cost.area",
             "mosaic.cost._capacity",
             "mosaic.noc._model_support",
-            "tilesight.distributed.noc._model_support",
         }}
 
         class BlockProvider(importlib.abc.MetaPathFinder):

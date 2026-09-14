@@ -1,16 +1,16 @@
-# conv 系列算子的 coarse 建模。
+# Coarse-grained modeling for convolution operators.
 #
-# 普通卷积 (groups=1) 按 implicit GEMM (im2col) 形式走 TileSight 的 gemm 建模:
+# Model standard convolutions (groups=1) with TileSight's gemm model using implicit GEMM (im2col):
 #   Conv1d(cin,cout,k,s):   M = bs*L_out,          N = cout, K = cin*k
 #   Conv2d(cin,cout,kh,kw): M = bs*H_out*W_out,    N = cout, K = cin*kh*kw
-#   Conv3d patch embed:     M = num_patches,       N = embed_dim, K = cin*kt*kh*kw (stride=kernel, 无 halo, 精确等价 GEMM)
-#   ConvTranspose1d:        GEMM M = bs*L_in, N = cout*k, K = cin, 再加 overlap-add 元素级归约
-# 深度卷积 (groups=cin=cout) 是访存受限的元素级算子: 每输出元素 k 次 MAC, 走 element_wrapper。
+#   Conv3d patch embed:     M = num_patches,       N = embed_dim, K = cin*kt*kh*kw (stride=kernel, no halo, exactly equivalent to GEMM).
+#   ConvTranspose1d:        GEMM M = bs*L_in, N = cout*k, K = cin, followed by elementwise overlap-add reduction.
+# Depthwise convolution (groups=cin=cout) is a memory-bound elementwise operator: k MACs per output element, modeled with element_wrapper.
 #
-# im2col 的 halo (相邻输出位置输入重叠) 由 L2/SMEM 复用吸收, K 维读放大在
-# gemm 建模里天然体现 (GEMM 也会对 A 的行做多次 tile 读), stride<k 时略保守。
+# im2col halo (overlapping inputs at adjacent output positions) is absorbed by L2/SMEM (shared memory) reuse; read amplification along K is
+# inherently captured by the gemm model (GEMM also reads tiles of A's rows multiple times), with slight overestimation when stride<k.
 #
-# 并行方案: M 维按 dp*sp 切 (batch/时间), N 维按 tp 切 (输出通道, 权重列切无需归约)。
+# Parallel scheme: shard M across dp*sp (batch/time), and N across tp (output channels; column-sharded weights require no reduction).
 import math
 import numpy as np
 from mosaic.parallelism import ParallelScheme
@@ -28,17 +28,19 @@ from mosaic.cost.op_perf_stats import OpPerfStats
 
 
 def _shard_m(m: int, parallel: ParallelScheme) -> int:
-    # M 维 (batch x 空间/时间) 按 dp*sp 切
+    # Shard M (batch x space/time) across dp*sp.
     return math.ceil(m / (parallel.dp * parallel.sp))
 
 
 def _shard_n(n: int, parallel: ParallelScheme) -> int:
-    # N 维 (输出通道) 按 tp 切
+    # Shard the N dimension (output channels) across tp
     return math.ceil(n / parallel.tp)
 
 
 def conv_gemm_coarse(m:int, n:int, k:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, op_name:str="conv"):
-    """implicit GEMM 形式的卷积主干: [m, k] @ [k, n], m 按 dp*sp 切, n 按 tp 切。"""
+    """Model the convolution core as implicit GEMM [m,k] @ [k,n], sharding m across
+    dp*sp and n across tp.
+    """
     assert granularity.get_mode() == "coarse"
 
     stats = OpPerfStats(op_name=op_name, dump_perf_log=granularity.dump_perf_log) if granularity.dump_perf_log else None
@@ -61,7 +63,7 @@ def conv_gemm_coarse(m:int, n:int, k:int, parallel:ParallelScheme, conv_bytes:Op
 
 
 def _conv_implicit_coarse(n:int, f:int, h_out:int, w_out:int, c:int, kh:int, kw:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, op_name:str):
-    # 走 TileSight conv 专用 implicit-GEMM 模型 (含 halo/L2 复用命中率), M 维按 dp*sp 切, F 维按 tp 切
+    # Use TileSight's conv-specific implicit-GEMM model (including halo/L2 reuse hit rates); shard M across dp*sp and F across tp
     from mosaic.op_dtype.conv_wrapper import conv_implicit_gemm_wrapper
     stats = OpPerfStats(op_name=op_name, dump_perf_log=granularity.dump_perf_log) if granularity.dump_perf_log else None
     shard_n = max(1, math.ceil(n / (parallel.dp * parallel.sp)))
@@ -74,7 +76,7 @@ def _conv_implicit_coarse(n:int, f:int, h_out:int, w_out:int, c:int, kh:int, kw:
 
 
 def conv1d_coarse(bs:int, length:int, cin:int, cout:int, kernel:int, stride:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, dilation:int=1):
-    # causal conv: L_out = ceil(L/s) (左侧 pad); k=1 无重叠退化为纯 GEMM
+    # causal conv: L_out = ceil(L/s) (left padding); k=1 has no overlap and reduces to pure GEMM
     l_out = math.ceil(length / stride)
     if kernel == 1:
         return conv_gemm_coarse(m=bs*l_out, n=cout, k=cin, parallel=parallel, conv_bytes=conv_bytes, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, op_name="conv1d_k1")
@@ -88,13 +90,13 @@ def conv2d_coarse(bs:int, height:int, width:int, cin:int, cout:int, kernel:int, 
 
 
 def conv3d_patch_embed_coarse(num_patches:int, cin:int, embed_dim:int, kernel_elems:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy):
-    # stride == kernel, 无重叠, 精确等价 GEMM: [num_patches, cin*kt*kh*kw] @ [cin*kt*kh*kw, embed_dim]
+    # stride == kernel, with no overlap, is exactly equivalent to GEMM: [num_patches, cin*kt*kh*kw] @ [cin*kt*kh*kw, embed_dim]
     return conv_gemm_coarse(m=num_patches, n=embed_dim, k=cin*kernel_elems, parallel=parallel, conv_bytes=conv_bytes, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, op_name="conv3d_patch_embed")
 
 
 def conv_transpose1d_coarse(bs:int, length:int, cin:int, cout:int, kernel:int, stride:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy):
-    # ConvTranspose1d: 每个输入位置产生 [cout, k] 贡献, GEMM [bs*L_in, cin] @ [cin, cout*k],
-    # 之后在输出 [bs, cout, L_out] 上做 overlap-add (每输出元素 ~ceil(k/s) 次累加, 访存受限元素级)。
+    # ConvTranspose1d: each input position contributes [cout, k], GEMM [bs*L_in, cin] @ [cin, cout*k],
+    # followed by overlap-add on output [bs, cout, L_out] (~ceil(k/s) additions per output element, memory-bound elementwise work).
     assert granularity.get_mode() == "coarse"
 
     stats = OpPerfStats(op_name="conv_transpose1d", dump_perf_log=granularity.dump_perf_log) if granularity.dump_perf_log else None
@@ -112,7 +114,7 @@ def conv_transpose1d_coarse(bs:int, length:int, cin:int, cout:int, kernel:int, s
     if stats is not None:
         stats.append_hete(smem_fusion_post_data)
 
-    # overlap-add: 输出 L_out = L_in * s, 每元素 ceil(k/s) 次读-加
+    # overlap-add: output L_out = L_in * s, with ceil(k/s) read-add operations per element
     l_out = length * stride
     shard_cout = _shard_n(cout, parallel)
     shard_bs_l = _shard_m(bs * l_out, parallel)
@@ -136,8 +138,8 @@ def conv_transpose1d_coarse(bs:int, length:int, cin:int, cout:int, kernel:int, s
 
 
 def _elementwise_pass_coarse(bs:int, length:int, channels:int, ops_per_elem:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, op_name:str):
-    # 访存受限的逐元素 pass (1R1W, 每元素 ops_per_elem 次运算);
-    # 通道按 tp 切, batch*长度按 dp*sp 切。
+    # Memory-bound elementwise pass (1R1W, ops_per_elem operations per element);
+    # shard channels across tp and batch*length across dp*sp.
     assert granularity.get_mode() == "coarse"
 
     stats = OpPerfStats(op_name=op_name, dump_perf_log=granularity.dump_perf_log) if granularity.dump_perf_log else None
@@ -162,10 +164,10 @@ def _elementwise_pass_coarse(bs:int, length:int, channels:int, ops_per_elem:int,
 
 
 def depthwise_conv1d_coarse(bs:int, length:int, channels:int, kernel:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy):
-    # depthwise conv (groups=channels): 每输出元素 kernel 次 MAC
+    # depthwise conv (groups=channels): kernel MACs per output element
     return _elementwise_pass_coarse(bs, length, channels, kernel, parallel, conv_bytes, granularity, single_chip, op_name="depthwise_conv1d")
 
 
 def activation_1d_coarse(bs:int, length:int, channels:int, parallel:ParallelScheme, conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, ops_per_elem:int=4):
-    # 独立激活 pass (SnakeBeta / gelu 等, 未与 conv 融合时): 1R1W + 少量运算
+    # Separate activation pass (SnakeBeta / gelu, etc., when not fused with conv): 1R1W + a few operations
     return _elementwise_pass_coarse(bs, length, channels, ops_per_elem, parallel, conv_bytes, granularity, single_chip, op_name="activation_1d")

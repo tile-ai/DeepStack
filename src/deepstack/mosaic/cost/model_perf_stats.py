@@ -16,25 +16,20 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class ModelPerfStats:
-    """
-    多个 OpPerfStats 的加权聚合，代表一个完整模型/端到端配置的性能统计。
+    """Weighted aggregation of OpPerfStats for an end-to-end model configuration.
 
-    用法：
+    Example:
         model_stats = ModelPerfStats(name="llama3-70b")
-        model_stats.add(mlp_stats,  n=32)   # 32 层 MLP
-        model_stats.add(attn_stats, n=32)   # 32 层 Attention
-        model_stats.add(pp_stats,   n=1)    # 1 次 PP 开销
-
-        model_stats.finalize(h=hierarchy)   # 传 h 则重新从聚合 traffic 精确计算 NoC 指标
+        model_stats.add(mlp_stats, n=32)
+        model_stats.add(attn_stats, n=32)
+        model_stats.add(pp_stats, n=1)
+        model_stats.finalize(h=hierarchy)
         model_stats.dump_log()
 
-    加权规则：
-      总时间          : Σ(n_i × e2e_i)
-      util / overlap  : 时间加权平均 Σ(n_i × e2e_i × metric_i) / Σ(n_i × e2e_i)
-      energy / bytes  : 线性求和 Σ(n_i × metric_i)
-      footprints      : max（不随 n 变化）
-      NoC bottleneck  : 聚合 n_i × traffic_mats_i 后以 T_total 为分母重新计算
-                        （需要传 h；否则退化为时间加权近似值）
+    Total time is sum(n_i * e2e_i). Utilization and overlap use time-weighted means;
+    energy and bytes use sum(n_i * metric_i). Footprints use the maximum and do not
+    scale with n. With h, recompute NoC metrics from aggregate weighted traffic and
+    total time; otherwise use time-weighted NoC approximations.
     """
 
     name: str = ""
@@ -44,15 +39,15 @@ class ModelPerfStats:
     total_time_s: float = 0.0         # Σ(n_i × e2e_i)
     compute_time_s: float = 0.0       # Σ(n_i × compute_i)
     comm_time_s: float = 0.0          # Σ(n_i × comm_i)
-    comm_overlap_pct: float = 0.0     # 时间加权平均
+    comm_overlap_pct: float = 0.0     # Time-weighted average.
 
     # ── Aggregated Memory Hierarchy ──────────────────────────────────────────
     dram_util_pct: float = 0.0
     l2_util_pct: float = 0.0
     l2_hit_rate_pct: float = 0.0
     smem_l1_util_pct: float = 0.0
-    smem_bytes_per_tb: float = 0.0        # max（最大 smem 占用）
-    reg_bytes_per_thread: float = 0.0     # max（最大 reg 占用）
+    smem_bytes_per_tb: float = 0.0        # max (peak smem usage).
+    reg_bytes_per_thread: float = 0.0     # max (peak reg usage).
 
     # ── Aggregated Compute Utilization ───────────────────────────────────────
     tensor_util_pct: float = 0.0
@@ -83,9 +78,9 @@ class ModelPerfStats:
     chip_compute_energy_j: float = 0.0
     chip_static_energy_j:  float = 0.0
     chip_total_energy_j:   float = 0.0
-    chip_num_devices:      int   = 1      # 从 entries 推断的设备数
+    chip_num_devices:      int   = 1      # Number of devices inferred from entries.
 
-    # ── 内部条目列表（不出现在 __init__ 签名中）──────────────────────────────
+    # ── Internal entry list (excluded from the __init__ signature) ──────────────────────────────
     # _entries: list of (n: float, OpPerfStats)
     _entries: list = field(default_factory=list, init=False, repr=False)
 
@@ -94,11 +89,9 @@ class ModelPerfStats:
     # ────────────────────────────────────────────────────────────────────────
 
     def add(self, op_stats: "OpPerfStats", n: float = 1.0) -> None:
-        """
-        注册一个算子/stage 的统计, n 为在完整模型中出现的次数。
-
-        op_stats 必须已经调用过 finalize()。
-        n 可以是整数或浮点数（例如 PP 时某些 stage 权重可能不是整数）。
+        """Register finalized operator or stage statistics.
+        n is the occurrence count in the full model and may be an integer or a float,
+        for example for fractional pipeline-stage weights.
         """
         self._entries.append((float(n), op_stats))
 
@@ -111,13 +104,10 @@ class ModelPerfStats:
         h: "Hierarchy | None" = None,
         energy_config: "NocEnergyConfig | None" = None,
     ) -> None:
-        """
-        聚合所有注册的 OpPerfStats,计算模型级性能统计。
-
-        h             : 传入时从聚合 traffic 矩阵精确计算 NoC 利用率/能耗/瓶颈。
-                        不传则 NoC util/bottleneck 退化为时间加权近似；
-                        energy 仍为 Σ(n_i x energy_i)（精确）。
-        energy_config : 可选，覆盖 h.energy_config。
+        """Aggregate registered operators into model-level statistics.
+        With h, recompute NoC utilization, energy, and bottlenecks from aggregate traffic.
+        Without h, utilization and bottlenecks use time-weighted approximations; energy
+        remains the exact weighted sum. energy_config optionally overrides h.energy_config.
         """
         if not self._entries:
             log.warning("ModelPerfStats.finalize: no entries registered, nothing to do.")
@@ -131,11 +121,11 @@ class ModelPerfStats:
         self.noc_link_time_s = sum(n * s.noc_link_time_s for n, s in self._entries)
         self.noc_total_bytes = sum(n * s.noc_total_bytes for n, s in self._entries)
 
-        # footprints: max（最坏情况）
+        # footprints: max (worst case).
         self.smem_bytes_per_tb    = max((s.smem_bytes_per_tb    for _, s in self._entries), default=0.0)
         self.reg_bytes_per_thread = max((s.reg_bytes_per_thread for _, s in self._entries), default=0.0)
 
-        # comm_overlap: 模型级（以总 comm/compute/e2e 重新计算，与 OpPerfStats 语义一致）
+        # comm_overlap: model-level (recomputed from total comm/compute/e2e, consistent with OpPerfStats semantics).
         if self.comm_time_s > 0:
             self.comm_overlap_pct = max(0.0, min(1.0,
                 1.0 - (T - self.compute_time_s) / self.comm_time_s
@@ -143,7 +133,7 @@ class ModelPerfStats:
         else:
             self.comm_overlap_pct = 100.0
 
-        # 时间加权平均 util
+        # Time-weighted average util.
         if T > 0:
             def _tw(attr: str) -> float:
                 return sum(n * s.e2e_time_s * getattr(s, attr)
@@ -156,11 +146,11 @@ class ModelPerfStats:
             self.tensor_util_pct  = _tw("tensor_util_pct")
             self.cuda_util_pct    = _tw("cuda_util_pct")
             self.sfu_util_pct     = _tw("sfu_util_pct")
-            # NoC util 先用时间加权近似；如果有 h 下面会精确覆盖
+            # Initially approximate NoC util with a time-weighted average; replace it with an exact value below if h is available.
             self.noc_max_util     = _tw("noc_max_util")
             self.noc_mean_util    = _tw("noc_mean_util")
 
-        # NoC：从聚合 traffic 矩阵精确计算（需要 h）
+        # NoC: compute exactly from the aggregated traffic matrix (requires h).
         if h is not None:
             agg_mats = []
             for n_i, s in self._entries:
@@ -178,15 +168,15 @@ class ModelPerfStats:
                 self.noc_max_util  = float(nz.max())  if nz.size > 0 else 0.0
                 self.noc_mean_util = float(nz.mean()) if nz.size > 0 else 0.0
             else:
-                # 无 traffic 矩阵，energy 退化为求和
+                # Without a traffic matrix, energy falls back to summation.
                 self.noc_total_energy_j = sum(n * s.noc_total_energy_j
                                               for n, s in self._entries)
         else:
-            # 无 h：energy 线性求和（精确）；util/bottleneck 保持时间加权近似
+            # Without h: sum energy linearly (exact); keep time-weighted approximations for util/bottleneck.
             self.noc_total_energy_j = sum(n * s.noc_total_energy_j
                                           for n, s in self._entries)
             if self._entries:
-                # bottleneck: 取 noc_max_util 最大的那个 op 的 bottleneck
+                # bottleneck: use the bottleneck of the op with the highest noc_max_util.
                 best = max(self._entries, key=lambda x: x[1].noc_max_util)
                 bs = best[1]
                 self.noc_bottleneck_src   = bs.noc_bottleneck_src
@@ -194,7 +184,7 @@ class ModelPerfStats:
                 self.noc_bottleneck_bytes = bs.noc_bottleneck_bytes
                 self.noc_bottleneck_bw    = bs.noc_bottleneck_bw
 
-        # chip energy: 线性求和 Σ(n_i × chip_*_j)
+        # Chip energy: linear sum Σ(n_i × chip_*_j).
         def _esum(attr: str) -> float:
             return sum(n * getattr(s, attr) for n, s in self._entries)
 
@@ -209,7 +199,7 @@ class ModelPerfStats:
         self.chip_compute_energy_j = _esum("chip_compute_energy_j")
         self.chip_static_energy_j  = _esum("chip_static_energy_j")
         self.chip_total_energy_j   = _esum("chip_total_energy_j")
-        # 取所有 entry 中 chip_num_devices 的最大值（应该都相同）
+        # Take the maximum chip_num_devices across all entries (they should all be equal).
         self.chip_num_devices = max((s.chip_num_devices for _, s in self._entries), default=1)
 
         if self.dump_perf_log:
@@ -220,21 +210,14 @@ class ModelPerfStats:
     # ────────────────────────────────────────────────────────────────────────
 
     def breakdown(self) -> list[tuple[float, "OpPerfStats"]]:
-        """返回 (n, op_stats) 列表，按 n x e2e_time 降序排列（最耗时的 op 在前）。"""
+        """Return (n, op_stats) pairs sorted by decreasing n * e2e_time."""
         return sorted(self._entries, key=lambda x: x[0] * x[1].e2e_time_s, reverse=True)
 
     def breakdown_by_name(self) -> list[dict]:
-        """
-        按 op_name 聚类，返回每个 op_name 的汇总信息，按总耗时降序排列。
-
-        每条记录包含：
-          op_name      : str
-          n_total      : float  — Σ n_i(该 op_name 的所有 entry 的出现次数之和）
-          time_total_s : float  — Σ(n_i x e2e_i)
-          time_pct     : float  — 占模型总时间的百分比
-          compute_s    : float  — Σ(n_i x compute_i)
-          comm_s       : float  — Σ(n_i x comm_i)
-          noc_energy_j : float  — Σ(n_i x noc_energy_i)
+        """Group entries by op_name and return aggregates sorted by decreasing total time.
+        Each record contains op_name, n_total=sum(n_i), time_total_s=sum(n_i*e2e_i),
+        time_pct, compute_s=sum(n_i*compute_i), comm_s=sum(n_i*comm_i),
+        and noc_energy_j=sum(n_i*noc_energy_i).
         """
         from collections import defaultdict
         groups: dict = defaultdict(lambda: {
@@ -297,7 +280,7 @@ class ModelPerfStats:
     # ────────────────────────────────────────────────────────────────────────
 
     def to_dict(self) -> dict:
-        """序列化为纯 Python dict(可直接传给 json.dump)"""
+        """Serialize to a plain Python dictionary suitable for json.dump."""
         T = self.total_time_s if self.total_time_s > 0 else 1.0
         nd = float(self.chip_num_devices) if self.chip_num_devices > 0 else 1.0
         compute_pct = self.compute_time_s / T * 100
@@ -557,7 +540,7 @@ class ModelPerfStats:
         return "\n".join([border, head, border] + body + [border])
 
     def render_human(self, markdown: bool = False) -> str:
-        """生成人类可读文本，信息对齐 dump_log（表格版）。"""
+        """Render human-readable tabular text with the same information as dump_log."""
         T = self.total_time_s if self.total_time_s > 0 else 1.0
         nd = float(self.chip_num_devices) if self.chip_num_devices > 0 else 1.0
         compute_pct = self.compute_time_s / T * 100
@@ -731,18 +714,18 @@ class ModelPerfStats:
         return "\n\n".join(blocks)
 
     def dump_log(self) -> None:
-        """用 log.info 分层打印聚合统计 + 各 op 贡献分解。"""
+        """Log aggregate statistics and per-operator contributions using log.info."""
         for line in self._build_detail_lines():
             log.info("%s", line)
 
     def dump_json(self, path: str) -> None:
-        """序列化写入 JSON 文件。"""
+        """Serialize the statistics to a JSON file."""
         with open(path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
         log.info("ModelPerfStats [%s] saved to %s", self.name, path)
 
     def dump_human(self, path: str, markdown: bool = False) -> None:
-        """写入人类可读格式（txt/md）。"""
+        """Write human-readable text or Markdown output."""
         with open(path, "w", encoding="utf-8") as f:
             f.write(self.render_human(markdown=markdown))
             f.write("\n")

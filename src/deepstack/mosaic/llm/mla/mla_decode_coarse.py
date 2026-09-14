@@ -777,7 +777,7 @@ def mla_decode_coarse(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arch, paral
     wq_hidden = num_head * head_dim
     in_bytes, weight_bytes, out_bytes = atten_bytes.get_dtype_bytes()
 
-    # 其中x [bs/dp, seq/sp, hidden], 
+    # Here x [bs/dp, seq/sp, hidden],
     # Wq_a, [hidden, q_down_hidden], Wq_b [q_down_hidden, num_head/tp*(q_nope_head_dim+q_rope_head_dim)]
     # Wkv_up_a_trans [num_head/tp, head_dim, kv_nope_head_dim]
     # Wkv_down [hidden, (kv_rope_head_dim+kv_nope_head_dim)]
@@ -906,7 +906,7 @@ def mla_decode_kv_list_coarse(bs:int, seq:int, cached_kv_list:list[int], model_a
     wq_hidden = num_head * head_dim
     in_bytes, weight_bytes, out_bytes = atten_bytes.get_dtype_bytes()
 
-    # 其中x [bs/dp, seq/sp, hidden], 
+    # Here x [bs/dp, seq/sp, hidden],
     # Wq_a, [hidden, q_down_hidden], Wq_b [q_down_hidden, num_head/tp*(q_nope_head_dim+q_rope_head_dim)]
     # Wkv_up_a_trans [num_head/tp, head_dim, kv_nope_head_dim]
     # Wkv_down [hidden, (kv_rope_head_dim+kv_nope_head_dim)]

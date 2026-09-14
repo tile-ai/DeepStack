@@ -61,7 +61,7 @@ def hete_reg_fusion(reg_array,arch_spec:Arch):
 
 
     time_added, ddr_util, l2_hit_rate, l2_util, smem_footprint, smem_l1_util, reg_footprint, ddr_read_io, l2_read_io, tensor_util, cuda_util, sfu_util=0,0,0,0,0,0,0,0,0,0,0,0
-    # print("reg_array此时: ", reg_array)
+    # print("reg_array at this point: ", reg_array)
     for row in reg_array:
         # print(row)
         time_added+=row[0]

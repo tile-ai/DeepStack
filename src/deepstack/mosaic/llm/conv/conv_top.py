@@ -1,5 +1,5 @@
-# conv 系列算子的 top 层入口 (granularity 分发), 与其他 kernel 的 *_top 约定一致:
-# 返回 (time, stats)。
+# Top-level entry points for conv operators (granularity dispatch), following the *_top convention of other kernels:
+# return (time, stats).
 from mosaic.parallelism import ParallelScheme
 from mosaic.noc.noc_topo import Hierarchy
 from mosaic.utils import OpBytes, Modeling_Granularity

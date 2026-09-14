@@ -52,23 +52,23 @@ class B6000(Arch):
         self.l1_max_util=0.9
         self.compute_max_util=0.9
 
-        # GB202 (sm_120): Ada 风格 mma, 无 Hopper wgmma / Blackwell DC tcgen05(UTCMMA)
+        # GB202 (sm_120): Ada-style mma, without Hopper wgmma / Blackwell DC tcgen05(UTCMMA)
         self.support_wgmma = False
         self.support_utcmma = False
 
-        # L2<->DRAM wave 粒度: H100 (5120-bit HBM) 校准值 8196, GB202 512-bit GDDR7 按总线比例 ~4096
+        # L2<->DRAM wave granularity: H100 (5120-bit HBM) calibrated value 8196; GB202 512-bit GDDR7 scales by bus width to ~4096
         self.ddr_wave_bytes = 4096
-        # element op 的 DDR 事务/tile 粒度: GDDR7 32B/channel x 32 channels
+        # DDR transaction/tile granularity for element ops: GDDR7 32B/channel x 32 channels
         self.ddr_transaction_size = 1024
 
-        # 其他 dtype 的 tensor core 吞吐 (GB202: tf32 = fp16/2, fp8 = fp16x2)
+        # Tensor core throughput for other dtypes (GB202: tf32 = fp16/2, fp8 = fp16x2)
         self.fp32_tensor_flops = self.fp16_tensor_flops / 2
         self.fp8_tensor_flops = self.fp16_tensor_flops * 2
         self.int32_cores_per_sm = 64
         self.int32_cuda_core_flops = self.sm_count * self.max_freq * self.int32_cores_per_sm * 2
 
     def set_to_spec(self):
-        # 设定分析上限
+        # Set upper bounds for analysis
         # self.max_freq = 1.5 * 1e9
         self.base_freq = 2.43 * 1e9
         self.max_freq = 2.43 * 1e9
@@ -94,7 +94,7 @@ class B6000(Arch):
         return self
 
     def get_tensor_core_minimum_ptx(self, bytes = 2):
-        # sm_120 mma 最小形状 (同 Ampere/Ada 风格)
+        # Minimum sm_120 mma shape (same style as Ampere/Ada)
         if bytes == 2:
             return (8, 8, 16)
         elif bytes == 4:

@@ -74,10 +74,10 @@ def find_best_l2_swizzle_row_panel(M:int, N:int, tb_m:int, tb_n:int, gemm_bytes:
 
     # row_panel means n_wave
     best_row_panel=math.sqrt(single_chip.sm_count * input_tile_bytes / weight_tile_bytes)
-    # 四舍五入并确保至少为 1
+    # Round to the nearest integer and ensure at least 1
     best_row_panel=max(1, int(round(best_row_panel)))
 
-    # 不超过 grid_n
+    # Do not exceed grid_n
     row_panel = min(best_row_panel, grid_n)
 
     return row_panel
@@ -154,7 +154,6 @@ def get_modeling_time(M:int,N:int,K:int,gemm_bytes:OpBytes,single_chip:Arch,tili
     # _,smem_fusion_post_data=smem_fusion(smem_fusion_list, grids, single_chip)
     # # posted=[bound_time, 0, ddr_util, l2_hit_rate, l2_util, smem_footprint, smem_l1_util, reg_footprint, compute_util]
     
-    # from tilesight.compare_with_ncu.extract_metrcis_from_modeling_data import extract_metrcis_from_modeling_data
             
     # log.info("grids: %s, waves: %s", grids, np.prod(grids)/single_chip.sm_count)
     # log.info("smem_fusion_post_data: %s, tiling_config: %s", extract_metrcis_from_modeling_data(smem_fusion_post_data), tiling_config)
@@ -176,7 +175,7 @@ def get_modeling_time(M:int,N:int,K:int,gemm_bytes:OpBytes,single_chip:Arch,tili
 
 def gemm_wrapper(M:int, N:int, K:int, gemm_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, batch=1, tiling_config=None):
 
-    # 如果M,N是奇数,则将其调整为偶数
+    # If M,N are odd, adjust them to be even
     if M % 2 != 0:
         M = M + 1
     if N % 2 != 0:
@@ -220,7 +219,7 @@ def gemm_wrapper(M:int, N:int, K:int, gemm_bytes:OpBytes, granularity:Modeling_G
                     best_config = config
                     best_smem_fusion_post_data = smem_fusion_post_data
             if best_config is None:
-                # 兜底使用默认配置
+                # Fall back to the default configuration
                 # tb_m, tb_n, tb_k, wp_m, wp_n, wp_k, stages, row_panel = get_default_tiling(M, N, K, gemm_bytes, single_chip)
                 # default_config = (tb_m, tb_n, tb_k, wp_m, wp_n, wp_k, stages, row_panel)
                 # best_smem_fusion_post_data, best_config = get_modeling_time(M,N,K,gemm_bytes,single_chip,default_config)

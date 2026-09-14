@@ -1,7 +1,8 @@
 """Pipeline-aware GEMM performance model.
 
-将原有 matmul_fused_op_new_api_wave.py 的资源计算分解为 per-K-iteration 粒度，
-结合软件流水线 overlap + wave head/tail 效应建模。
+Decompose the resource calculation from matmul_fused_op_new_api_wave.py into
+per-K-iteration quantities, and model software pipeline overlap together
+with wave head/tail effects.
 """
 from ..util import *
 from ..tile_cache.cache_model import multi_level_hit_rate
@@ -31,31 +32,31 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
                                    mma_type="wmma",
                                    column_panel=None,
                                    raster_axis="legacy"):
-    """Pipeline-aware GEMM 性能模型入口。
+    """Entry point for the pipeline-aware GEMM performance model.
 
     The optional `column_panel` argument specifies the M-direction sub-block
-    height) and `raster_axis` ('legacy' / 'along_m' / 'along_n')
-    to map cutlass RasterOrder + swizzle_size into the cache model.
+    height. Together with `raster_axis` ('legacy' / 'along_m' / 'along_n'),
+    it maps CUTLASS RasterOrder + swizzle_size into the cache model.
 
-    Cutlass mapping the runner uses:
-        RasterOrder::AlongM, swizzle=K → row_panel=K,
-                                          column_panel=gridM (or SM_Count),
-                                          raster_axis='along_m'
-        RasterOrder::AlongN, swizzle=K → row_panel=gridN (or SM_Count),
-                                          column_panel=K,
-                                          raster_axis='along_n'
+    CUTLASS mapping used by the runner:
+        RasterOrder::AlongM, swizzle=K -> row_panel=K,
+                                         column_panel=gridM (or SM_Count),
+                                         raster_axis='along_m'
+        RasterOrder::AlongN, swizzle=K -> row_panel=gridN (or SM_Count),
+                                         column_panel=K,
+                                         raster_axis='along_n'
 
     Args:
         op_shape: (M, N, K)
-        tb_shape: (tb_m, tb_n, tb_k) thread-block tile
-        wp_shape: (wp_m, wp_n, wp_k) warp tile
-        stage_num: pipeline stages
-        arch: TileSight arch (microbench-applied)
-        mem_levels: per-operand cache traversal flags
-        row_panel: N-direction sub-block width (legacy default 1)
-        column_panel: M-direction sub-block height; None → legacy
+        tb_shape: (tb_m, tb_n, tb_k) thread-block tile.
+        wp_shape: (wp_m, wp_n, wp_k) warp tile.
+        stage_num: Number of pipeline stages.
+        arch: TileSight architecture with microbenchmark results applied.
+        mem_levels: Per-operand cache traversal flags.
+        row_panel: N-direction sub-block width (legacy default 1).
+        column_panel: M-direction sub-block height; None uses the legacy
             derivation `Stride_M = SM_Count // row_panel`.
-        raster_axis: sub-block traversal direction.
+        raster_axis: Sub-block traversal direction.
         mma_type: 'wmma' / 'wgmma' / 'utcmma_cta1' / 'utcmma_cta2'
 
     Returns:
@@ -155,7 +156,7 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
         log.warning(" arch name: %s, minimum ptx shape: %s", arch.core, minimum_tc_ptx_shape)
 
     # ================================================================
-    # Per-K-iteration 资源分解 (per tile, per K-step)
+    # Per-K-iteration resource breakdown (per tile, per K-step)
     # ================================================================
 
     # ---- Per-iter total load IO (load A tile + B tile) ----
@@ -173,14 +174,14 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
     l1_5_io_per_iter = total_load_per_iter
     l2_load_per_iter = total_load_per_iter * (1 - l1_5_hit_rate)
 
-    # DRAM wave-byte quantization (应用于 per-iter 级别)
+    # DRAM wave-byte quantization (applied per iteration)
     assert hasattr(arch, 'ddr_wave_bytes'), "arch.ddr_wave_bytes does not exist"
 
     # DDR read per iter = L2 miss portion (of L1.5 misses)
     ddr_load_per_iter = l2_load_per_iter * (1 - l2_hit_rate) * DDR_non_ideal_para
 
     if uses_dram_wave_quantization(arch) and ddr_load_per_iter > 0:
-        # 对 total DDR IO 做 wave bytes 量化, 然后分摊回 per-iter
+        # Quantize total DDR IO to wave bytes, then distribute it back across iterations
         total_l2_read = (gridM / cm_eff) * (gridN / cn_eff) * k * (
             super_tb_m * in1_level[0] * in1_level[-1]
             + super_tb_n * in2_level[0] * in2_level[-1])
@@ -189,7 +190,7 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
         l2_load_per_iter *= wave_correction
         ddr_load_per_iter = l2_load_per_iter * (1 - l2_hit_rate) * DDR_non_ideal_para
 
-    # L2 IO per iter (包含 l2 read 的 two-part cache 结构, 只对 L1.5 miss 部分)
+    # L2 IO per iter (includes the two-part cache structure for L2 reads, only for the L1.5-miss portion)
     if arch.core in ("A100", "H100", "B200", "A100_LUT"):
         l2_io_per_iter = (l2_load_per_iter * l2_hit_rate
                           + l2_load_per_iter * (1 - l2_hit_rate) * 2)
@@ -239,7 +240,7 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
         smem_per_iter = ldgsts + shared_load
 
     # ================================================================
-    # Store (epilogue) 资源 — per tile, 只执行一次
+    # Store (epilogue) resources -- per tile, executed only once
     # ================================================================
     # store_l2_io is per (super-)tile; cta2 super-tile = super_tb_m × super_tb_n
     store_l2_io = super_tb_m * super_tb_n * out1_level[-1] * out1_level[0]
@@ -265,7 +266,7 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
     store_smem_io = super_tb_m * super_tb_n * out1_level[-1] * out1_level[1]
 
     # ================================================================
-    # Footprint 计算 (复用现有逻辑)
+    # Footprint calculation (reuse existing logic)
     # ================================================================
     if arch.core == "B200" and mma_type == "utcmma_cta2":
         # Per-CTA: broadcast operand is split across the cluster via
@@ -298,7 +299,7 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
         reg_footprint = math.ceil(reg_footprint * REG_spill_para)
 
     # ================================================================
-    # 组装 TileResources
+    # Assemble TileResources
     # ================================================================
     warps_per_block = int((tb_m / wp_m) * (tb_n / wp_n))
     spatial_grids = (math.ceil(gridM / cm_eff), math.ceil(gridN / cn_eff))
@@ -340,7 +341,7 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
         smem_footprint, reg_footprint, warps_per_block, arch, mma_type)
 
     # ================================================================
-    # Pipeline latency (SM-level, 考虑 occupancy 交织)
+    # Pipeline latency (SM-level, accounting for occupancy interleaving)
     # ================================================================
     # cta2: 1 cluster occupies cluster_size SMs → sm_count // cluster_size
     effective_sm_count = arch.sm_count // cluster_size if cluster_size > 1 else arch.sm_count
@@ -360,8 +361,8 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
         tile_res=tile_res, data_bytes=in1_level[-1],
         sm_count_override=effective_sm_count)
 
-    # 用实际执行条件重算 per_tile_latency 和 pipeline_detail (用于报告)
-    # tiles < sm_count 时, 每 SM 只有 1 tile, active_sms = total_tiles
+    # Recalculate per_tile_latency and pipeline_detail under actual execution conditions (for reporting)
+    # When tiles < sm_count, each SM has only 1 tile, active_sms = total_tiles
     actual_active_sms = min(total_tiles, effective_sm_count)
     actual_tiles_per_sm = (1 if total_tiles <= effective_sm_count
                            else min(math.ceil(total_tiles / effective_sm_count), tiles_per_sm))
@@ -372,10 +373,10 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
     total_latency *= batch
 
     # ================================================================
-    # Utilization 计算
+    # Utilization calculation
     # ================================================================
-    # utilization = 该资源在 roofline 下的理论时间 / pipeline 模型的实际时间
-    # roofline 理论时间 = total_resource / system_bandwidth (使用全系统带宽)
+    # utilization = theoretical time for this resource under the roofline model / actual time from the pipeline model
+    # Theoretical roofline time = total_resource / system_bandwidth (using full-system bandwidth)
     total_l2_read = (gridM / cm_eff) * (gridN / cn_eff) * k * (
         super_tb_m * in1_level[0] * in1_level[-1]
         + super_tb_n * in2_level[0] * in2_level[-1])
@@ -385,7 +386,7 @@ def calculate_matmul_pipeline_wave(op_shape, tb_shape, wp_shape, stage_num, arch
     total_compute *= batch
     total_ddr *= batch
 
-    # roofline 理论最短时间
+    # Theoretical minimum roofline time
     ddr_time_roofline = total_ddr / arch.ddr_bandwidth if arch.ddr_bandwidth > 0 else 0
     compute_time_roofline = resources_to_times(0, 0, 0, total_compute, arch, in1_level[-1])[4]
 
@@ -415,12 +416,12 @@ def calculate_matmul_triton_swizzle_pipeline_wave(op_shape, tb_shape, wp_shape,
                                                   group_m=8, batch=1):
     """Pipeline-aware GEMM with Triton swizzle scheduling.
 
-    与标准 matmul 的差异:
-    - L2 hit rate 使用 triton swizzle 版本 (group_m 参数)
-    - wmma only (无 mma_type 分支)
-    - DDR_non_ideal_para=1.0
+    Differences from standard matmul:
+    - L2 hit rate uses the Triton swizzle variant (group_m parameter).
+    - Supports wmma only (no mma_type branch).
+    - DDR_non_ideal_para=1.0.
 
-    参数签名与 fused_op_dtype/matmul_fused_op_triton_swizzle.py 一致。
+    The parameter signature matches fused_op_dtype/matmul_fused_op_triton_swizzle.py.
     """
     m, n, k = op_shape
     tb_m, tb_n, tb_k = tb_shape
@@ -437,13 +438,13 @@ def calculate_matmul_triton_swizzle_pipeline_wave(op_shape, tb_shape, wp_shape,
     in2_level = mem_levels['in2']
     out1_level = mem_levels['out1']
 
-    # ---- L2 hit rate (triton swizzle 版本, L2-only — no multi-level for swizzle yet) ----
+    # ---- L2 hit rate (triton swizzle version, L2-only -- no multi-level support for swizzle yet) ----
     l2_hit_rate = L2_hit_rate_flow_sim_reuse_distance_triton_swizzle(
         m, n, k, tb_m, tb_n, tb_k,
         arch.l2_capacity, arch.sm_count, mem_levels, group_m)
     l1_5_hit_rate = 0.0  # TODO: multi-level triton swizzle
 
-    # ---- Per-K-iter 资源分解 ----
+    # ---- Per-K-iter resource breakdown ----
     total_load_per_iter = tb_k * (tb_m * in1_level[0] * in1_level[-1]
                                   + tb_n * in2_level[0] * in2_level[-1])
     # L1.5 IO = total_load (all requests read through L1.5; read/write have independent BW)

@@ -12,7 +12,7 @@ from mosaic.utils.estimate_moe_routing_max import estimate_moe_routing_max
 # ---------------------- CONFIG ----------------------
 M = 256
 n = 8
-EP = 8                 # 👈可改：例如 4, 8, 16, 32, 64, 128, 256
+EP = 8                 # 👈Configurable: e.g., 4, 8, 16, 32, 64, 128, 256.
 R_list = [1, 4, 32]
 T_max = 128
 rng_seed_base = 43

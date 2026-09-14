@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 
 
-# ----- 基础枚举/常量（用 str 以便与 JSON/外部对接） -----
+# ----- Basic enums/constants (use str for JSON/external integration) -----
 
 WeightDType = str         # e.g. "fp32", "fp16", "bf16", "int8", "fp8-e4m3"
 ActivationType = str      # e.g. "silu", "gelu", "relu", "swiglu"
@@ -11,7 +11,7 @@ AttentionType = str       # "gqa" | "mla"
 FFNType = str             # "dense" | "moe"
 
 
-# ----- 细分子配置 -----
+# ----- Detailed sub-configurations -----
 
 @dataclass
 class RopeConfig:
@@ -27,7 +27,7 @@ class RopeConfig:
 class AttentionConfig:
     attention_type: AttentionType = "gqa"
     num_attention_heads: Optional[int] = None
-    num_key_value_heads: Optional[int] = None  # 仅 gqa 使用
+    num_key_value_heads: Optional[int] = None  # Used only by gqa
     head_dim: Optional[int] = None
     dropout: Optional[float] = None
     qk_norm: Optional[bool] = None
@@ -64,37 +64,37 @@ class LayerSpec:
 
 @dataclass
 class LLMModelSpec:
-    # 核心元信息
-    arch_name: str                   # 例如 "llama", "qwen3_moe", "deepseek_v3"
-    model_family: str                # 例如 "llama", "qwen", "deepseek"
+    # Core metadata
+    arch_name: str                   # For example, "llama", "qwen3_moe", "deepseek_v3"
+    model_family: str                # For example, "llama", "qwen", "deepseek"
 
-    # 全局结构参数
+    # Global structure parameters
     hidden_size: Optional[int] = None
     num_hidden_layers: Optional[int] = None
-    # 按类型聚合的层数（不逐层枚举时使用）
+    # Layer counts aggregated by type (used when layers are not enumerated individually)
     num_dense_layers: Optional[int] = None
     num_moe_layers: Optional[int] = None
     rms_norm_eps: Optional[float] = None
     max_seq_len: Optional[int] = None
     vocab_size: Optional[int] = None
 
-    # 数据类型/权重
+    # Data types/weights
     weight_dtype: Optional[WeightDType] = None
 
-    # 位置编码
+    # Positional encoding
     rope: RopeConfig = field(default_factory=RopeConfig)
 
-    # 注意力（默认给一个全局模板，Layer 可覆写）
+    # Attention (a global template by default, overridable by Layer)
     attention: AttentionConfig = field(default_factory=AttentionConfig)
 
-    # 前馈（Dense 或 MoE 的全局模板，Layer 可覆写其一）
+    # Feed-forward (global Dense or MoE templates, either overridable by Layer)
     dense_ffn: DenseFFNConfig = field(default_factory=DenseFFNConfig)
     moe_ffn: MoEConfig = field(default_factory=MoEConfig)
 
-    # 逐层规格（若为空，可按全局模板推导）
+    # Per-layer specifications (if empty, infer from the global templates)
     layers: List[LayerSpec] = field(default_factory=list)
 
-    # 其他配置
+    # Other configuration
     extra: Dict[str, Any] = field(default_factory=dict)
 
 

@@ -4,7 +4,7 @@ from numpy.random import permutation
 from .extract_blocks import extract_blocks
 from .sdcm import sdcm
 
-# 确保已经定义了之前转换的 extract_blocks 和 sdcm 函数
+# Ensure the previously converted extract_blocks and sdcm functions are defined
 
 def flash_attention_L2_hit_rate(M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count, mem_levels, row_panel):
     # fixed pattern actually
@@ -83,7 +83,7 @@ def flash_attention_L2_hit_rate(M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count, mem
 
     return hit_rate
 
-# # 使用实际参数调用函数
+# # Call the function with actual parameters
 # M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count, BYTE_per_num, stage_num, block_per_sm=20480,4096,4096,128,256,32,31457280,108,2,3
 # hit_rate = L2_hit_rate_flow_sim_reuse_distance(M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count, BYTE_per_num, stage_num)
 # print(f"Hit Rate: {hit_rate}")

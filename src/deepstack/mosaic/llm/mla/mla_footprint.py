@@ -31,7 +31,7 @@ def get_mla_no_absorb_footprint(bs:int, seq:int, model_arch:LLM_Arch, parallel:P
     group_size = math.ceil (num_head/num_kv_head)
     wq_hidden = num_head * head_dim
 
-    # 其中x [bs/dp, seq/sp, hidden], 
+    # Here x [bs/dp, seq/sp, hidden],
     # Wq_a, [hidden, q_down_hidden], Wq_b [q_down_hidden, num_head/tp*(q_nope_head_dim+q_rope_head_dim)]
     # Wkv_down [hidden, (kv_rope_head_dim+kv_nope_head_dim)]
     # Wkv_up [kv_nope_head_dim, kv_nope_up_hidden/tp]
@@ -102,7 +102,7 @@ def get_mla_absorb_footprint(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arch
     group_size = math.ceil (num_head/num_kv_head)
     wq_hidden = num_head * head_dim
 
-    # 其中x [bs/dp, seq/sp, hidden], 
+    # Here x [bs/dp, seq/sp, hidden],
     # Wq_a, [hidden, q_down_hidden], Wq_b [q_down_hidden, num_head/tp*(q_nope_head_dim+q_rope_head_dim)]
     # Wkv_up_a_trans [num_head/tp, head_dim, kv_nope_head_dim]
     # Wkv_down [hidden, (kv_rope_head_dim+kv_nope_head_dim)]
@@ -184,7 +184,7 @@ def get_mla_absorb_and_no_absorb_footprint(bs:int, seq:int, cached_kv:int, model
     group_size = math.ceil (num_head/num_kv_head)
     wq_hidden = num_head * head_dim
 
-    # 其中x [bs/dp, seq/sp, hidden], 
+    # Here x [bs/dp, seq/sp, hidden],
     # Wq_a, [hidden, q_down_hidden], Wq_b [q_down_hidden, num_head/tp*(q_nope_head_dim+q_rope_head_dim)]
     # Wkv_up_a_trans [num_head/tp, head_dim, kv_nope_head_dim]
     # Wkv_down [hidden, (kv_rope_head_dim+kv_nope_head_dim)]
@@ -245,7 +245,7 @@ def get_mla_absorb_and_no_absorb_footprint(bs:int, seq:int, cached_kv:int, model
 if __name__ == "__main__":
     from mosaic.llm_arch import DeepSeekV3
     logging.basicConfig(
-    level=logging.INFO,                              # 全局日志级别
+    level=logging.INFO,                              # Global logging level.
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     datefmt="%H:%M:%S",
     )

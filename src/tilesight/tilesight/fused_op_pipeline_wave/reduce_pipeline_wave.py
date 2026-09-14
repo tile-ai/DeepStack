@@ -1,7 +1,8 @@
 """Pipeline-aware reduce operation performance model.
 
-Reduce ops 有 reduction loop（类似 GEMM 的 K-loop），可受益于软件流水线。
-包含 general reduce 和 inter-thread reduce 两个变体。
+Reduction operations have a reduction loop, similar to GEMM's K-loop,
+and can benefit from software pipelining. Includes general reduce and
+inter-thread reduce variants.
 """
 import numpy as np
 import math
@@ -33,7 +34,7 @@ def _apply_wave_bytes_correction(io_val, arch):
 
 
 def _compute_thread_overhead(thread_per_tb):
-    """计算线程数不足导致的计算开销。"""
+    """Compute the overhead caused by insufficient threads."""
     if thread_per_tb <= 32:
         return 32 / thread_per_tb
     elif thread_per_tb <= 128:
@@ -47,7 +48,7 @@ def _compute_thread_overhead(thread_per_tb):
 
 
 def _build_result(tile_res, tiles_per_sm, arch, l2_hit_rate, data_bytes=4):
-    """从 TileResources 构建 PipelineResult。"""
+    """Build a PipelineResult from TileResources."""
     sm_latency, pipeline_detail = compute_pipeline_tile_latency_with_occupancy(
         tile_res, tiles_per_sm, arch, data_bytes=data_bytes)
     per_tile_latency, _ = compute_pipeline_tile_latency(
@@ -73,12 +74,12 @@ def _build_result(tile_res, tiles_per_sm, arch, l2_hit_rate, data_bytes=4):
 
 def _parse_reduction_axes(out_shape, reduction_shape, out_axis_mapping,
                           reduction_axis_mapping, out_tb_shape, dim_threads):
-    """解析 reduction 轴结构，返回所需的中间数据。
+    """Parse the reduction-axis structure and return the required intermediate data.
 
     Returns:
-        dict with keys: spatial_grids, reduction_grids, reduction_step,
+        A dictionary with keys: spatial_grids, reduction_grids, reduction_step,
         in1_tb_spatial_shape, in1_tb_current_step_shape,
-        out_thread_shape, in1_thread_shape, thread_per_tb
+        out_thread_shape, in1_thread_shape, thread_per_tb.
     """
     spatial_grids = [math.ceil(dim / tb_dim)
                      for dim, tb_dim in zip(out_shape, out_tb_shape)]
@@ -105,12 +106,12 @@ def _parse_reduction_axes(out_shape, reduction_shape, out_axis_mapping,
         reduction_grids.append(math.ceil(dim_size / current_step))
         reduction_step.append(current_step)
 
-        if input_index == 2:  # 公共归约轴
+        if input_index == 2:  # Shared reduction axis
             in1_tb_current_step_shape.append(current_step)
-        elif input_index == 1:  # input2 私有归约轴
+        elif input_index == 1:  # Reduction axis private to input2
             in1_tb_spatial_shape[in1_tb_spatial_index] += current_step - 1
             in1_tb_spatial_index -= 1
-        elif input_index == 0:  # input1 私有归约轴
+        elif input_index == 0:  # Reduction axis private to input1
             in1_tb_current_step_shape.append(current_step)
 
     return {
@@ -135,16 +136,17 @@ def calculate_N_0_general_reduce_pipeline_wave(
     """General reduce pipeline-aware model.
 
     Args:
-        out_shape: 输出形状
-        reduction_shape: 归约轴形状
-        out_axis_mapping: 输出轴到输入的映射
-        reduction_axis_mapping: 归约轴映射 [[input_idx, step], ...]
-        out_tb_shape: 输出 tile 形状
-        dim_threads: 各维度线程数
-        arch: 架构对象
+        out_shape: Output shape.
+        reduction_shape: Shape of the reduction axes.
+        out_axis_mapping: Mapping from output axes to input axes.
+        reduction_axis_mapping: Reduction-axis mapping [[input_idx, step], ...].
+        out_tb_shape: Output tile shape.
+        dim_threads: Thread count along each dimension.
+        arch: Architecture object.
         mem_levels: {'in1': [...], 'out1': [...]}
-        compute_at: local register 保持级别 (-1, 0, 或正整数)
-        stage_num: 软件流水线深度 (default 1)
+        compute_at: Level at which values are retained in local registers
+            (-1, 0, or a positive integer).
+        stage_num: Software pipeline depth; defaults to 1.
 
     Returns:
         PipelineResult
@@ -188,10 +190,10 @@ def calculate_N_0_general_reduce_pipeline_wave(
     else:
         total_l2_io = total_l2_read + total_l2_store
 
-    # ---- Reduction loop 迭代数 ----
+    # ---- Reduction loop iteration count ----
     num_reduction_iters = int(np.prod(reduction_grids))
 
-    # ---- Per reduction-iteration 资源 (per tile) ----
+    # ---- Resources per reduction iteration (per tile) ----
     per_iter_l2_read = (in1_level[-1] * np.prod(in1_tb_spatial_shape)
                         * np.prod(in1_tb_current_step_shape) * in1_level[0])
     per_iter_ddr = per_iter_l2_read * (1 - l2_hit_rate) * DDR_non_ideal_para
@@ -208,7 +210,7 @@ def calculate_N_0_general_reduce_pipeline_wave(
     # lds (load from smem for compute)
     overheads = _compute_thread_overhead(thread_per_tb)
 
-    # compute_at 决定 lds 的模式
+    # compute_at determines the lds pattern
     current_in1_thread_shape = list(in1_thread_shape)
     current_reduction_step = list(reduction_step)
     current_reduction_axis_mapping = list(reduction_axis_mapping)
@@ -295,11 +297,11 @@ def calculate_N_0_general_reduce_pipeline_wave(
 
 
 # =====================================================================
-# 双输入解析 (general_reduce / general_inter_thread_reduce 使用)
+# Parse two inputs (used by general_reduce / general_inter_thread_reduce)
 # =====================================================================
 def _parse_reduction_axes_dual(out_shape, reduction_shape, out_axis_mapping,
                                reduction_axis_mapping, out_tb_shape, dim_threads):
-    """解析双输入 reduction 轴结构 (in1 + in2)。"""
+    """Parse the reduction-axis structure for two inputs (in1 + in2)."""
     spatial_grids = [math.ceil(dim / tb_dim)
                      for dim, tb_dim in zip(out_shape, out_tb_shape)]
     thread_per_tb = np.prod(dim_threads)
@@ -364,12 +366,12 @@ def _parse_reduction_axes_dual(out_shape, reduction_shape, out_axis_mapping,
 
 
 # =====================================================================
-# General Reduce — 双输入版本
+# General Reduce -- two-input version
 # =====================================================================
 def calculate_general_reduce_pipeline_wave(
         out_shape, reduction_shape, out_axis_mapping, reduction_axis_mapping,
         out_tb_shape, dim_threads, arch, mem_levels, compute_at=1, stage_num=1):
-    """双输入 general reduce, 对应 fused_op_dtype/general_reduce_fused_op.py。"""
+    """General reduce with two inputs, corresponding to fused_op_dtype/general_reduce_fused_op.py."""
     DDR_non_ideal_para = 1.0
     REG_spill_para = 1.1
 
@@ -453,13 +455,13 @@ def calculate_general_reduce_pipeline_wave(
 
 
 # =====================================================================
-# General Inter-thread Reduce — 双输入版本
+# General Inter-thread Reduce -- two-input version
 # =====================================================================
 def calculate_general_inter_thread_reduce_pipeline_wave(
         out_shape, reduction_shape, out_axis_mapping, reduction_axis_mapping,
         out_tb_shape, dim_threads, reduce_threads_info, arch, mem_levels,
         compute_at=1, stage_num=1):
-    """双输入 inter-thread reduce, 对应 fused_op_dtype/general_inter_thread_reduce_fused_op.py。"""
+    """Inter-thread reduce with two inputs, corresponding to fused_op_dtype/general_inter_thread_reduce_fused_op.py."""
     DDR_non_ideal_para = 1.1
     REG_spill_para = 1.1
 
@@ -559,13 +561,13 @@ def calculate_general_inter_thread_reduce_pipeline_wave(
 
 
 # =====================================================================
-# General Reduce with Stride — 双输入版本
+# General Reduce with Stride -- two-input version
 # =====================================================================
 def calculate_general_reduce_with_stride_pipeline_wave(
         out_shape, reduction_shape, out_axis_mapping, reduction_axis_mapping,
         out_tb_shape, dim_threads, arch, mem_levels, compute_at=1,
         strides=None, stage_num=1):
-    """双输入 general reduce with stride, 对应 fused_op_dtype/general_ruduce_resource_utilization_with_stride.py。"""
+    """General reduce with two inputs and stride, corresponding to fused_op_dtype/general_ruduce_resource_utilization_with_stride.py."""
     if strides is None:
         strides = [1, 1]
     return calculate_general_reduce_pipeline_wave(
@@ -582,12 +584,13 @@ def calculate_N_0_general_inter_thread_reduce_pipeline_wave(
         compute_at=1, stage_num=1):
     """Inter-thread reduce pipeline-aware model.
 
-    与 general reduce 类似, 但额外考虑跨线程归约 (shfl / shared memory reduce)。
+    Similar to general reduce, with additional modeling of reduction across threads
+    using shfl or shared memory.
 
     Args:
-        reduce_threads_info: [axis_index, num_reduce_threads]
-            在哪个归约轴上进行线程间归约，以及使用多少线程
-        其他参数同 calculate_N_0_general_reduce_pipeline_wave
+        reduce_threads_info: [axis_index, num_reduce_threads], specifying the
+            reduction axis used for inter-thread reduction and the number of threads.
+        Other parameters: Same as calculate_N_0_general_reduce_pipeline_wave.
 
     Returns:
         PipelineResult
@@ -635,7 +638,7 @@ def calculate_N_0_general_inter_thread_reduce_pipeline_wave(
     # ---- Reduction loop ----
     num_reduction_iters = int(np.prod(reduction_grids))
 
-    # inter-thread reduce: 切分 rstep
+    # inter-thread reduce: split rstep
     reduction_step[reduce_threads_info[0]] = math.ceil(
         reduction_step[reduce_threads_info[0]] / reduce_threads_info[1])
 
@@ -700,12 +703,12 @@ def calculate_N_0_general_inter_thread_reduce_pipeline_wave(
     store_ddr = np.prod(out_tb_shape) * out1_level[0] * out1_level[-1]
     store_l2 = store_ddr
 
-    # 归约阶段的额外 smem IO 和 compute
+    # Additional shared-memory IO and compute for the reduction stage
     reduce_smem_extra = 0
     reduce_compute_extra = 0
 
     if reduce_threads_info[1] > 32:
-        # 跨 warp 归约需要 shared memory
+        # Cross-warp reduction requires shared memory
         current_reduce = reduce_threads_info[1]
         reduce_smem_extra += (thread_per_tb / reduce_threads_info[1]
                               * np.prod(out_thread_shape) * out1_level[-1] * current_reduce)
@@ -722,13 +725,13 @@ def calculate_N_0_general_inter_thread_reduce_pipeline_wave(
     else:
         reg_footprint += 3
 
-    # 归约的 compute overhead
+    # Compute overhead of reduction
     reduce_compute_extra = (2 * np.prod(out_tb_shape)
                             * math.ceil(math.log2(reduce_threads_info[1])) * overheads)
 
-    # 将归约 overhead 加到 store/epilogue
+    # Add reduction overhead to store/epilogue
     store_smem += reduce_smem_extra * overheads
-    per_iter_compute += 0  # reduce compute 只在 epilogue 发生
+    per_iter_compute += 0  # Reduction compute occurs only in the epilogue
 
     reg_footprint = math.ceil(reg_footprint * REG_spill_para)
 
@@ -741,7 +744,7 @@ def calculate_N_0_general_inter_thread_reduce_pipeline_wave(
     smem_footprint *= stage_num
 
     # ---- TileResources ----
-    # 将归约 compute 加到 epilogue
+    # Add reduction compute to the epilogue
     total_compute = (np.prod(out_shape) * np.prod(reduction_shape) * 2
                      + np.prod(out_shape) * math.ceil(math.log2(reduce_threads_info[1])) * 2)
     total_compute *= overheads

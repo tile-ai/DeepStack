@@ -47,7 +47,6 @@ def get_modeling_time(M:int,N:int,K:int,gemm_bytes:OpBytes,single_chip:Arch,tili
     # _,smem_fusion_post_data=smem_fusion(smem_fusion_list, grids, single_chip)
     # # posted=[bound_time, 0, ddr_util, l2_hit_rate, l2_util, smem_footprint, smem_l1_util, reg_footprint, compute_util]
     
-    # from tilesight.compare_with_ncu.extract_metrcis_from_modeling_data import extract_metrcis_from_modeling_data
             
     # log.info("grids: %s, waves: %s", grids, np.prod(grids)/single_chip.sm_count)
     # log.info("smem_fusion_post_data: %s, tiling_config: %s", extract_metrcis_from_modeling_data(smem_fusion_post_data), tiling_config)

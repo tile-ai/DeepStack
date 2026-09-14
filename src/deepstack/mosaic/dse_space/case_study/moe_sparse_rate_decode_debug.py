@@ -581,7 +581,7 @@ def modeling_decode(
     return time_total_list
 
 
-# ---------- 单进程 worker：单个 (scheme, kv_len list) 任务 ----------
+# ---------- Single-process worker: one (scheme, kv_len list) task ----------
 def _compute_time_row(args):
     (
         combo_idx,              # int -> arch_noc_combinations1110()[combo_idx]
@@ -594,11 +594,11 @@ def _compute_time_row(args):
         routing_array           # np.ndarray
     ) = args
 
-    # 在当前进程里重建 heavy 对象
+    # Rebuild heavy objects in the current process.
     arch, noc = arch_noc_combinations1110()[combo_idx]
     model_arch = MODEL_REG[model_key]()
 
-    # 重建 granularity
+    # Rebuild granularity.
     granularity = Modeling_Granularity(
         mode=granularity_tuple[0],
         comp_comm_overlap=granularity_tuple[1],
@@ -668,12 +668,9 @@ def _compute_time_row(args):
 
 
 def dse_1(run_dir, num_workers=None):
-    """
-    单线程版本：
-    1) 主进程过滤 valid parallel schemes，并把 footprint 记下来；
-    2) 组装 (combo_idx, model_key, kv_len list, scheme, ...) 任务；
-    3) 逐个调用 _compute_time_row 计算 time/utps/stps；
-    4) 主进程统一写入 CSV。
+    """Single-threaded search: filter valid parallel schemes and record footprints,
+    build tasks from configuration keys and KV-length lists, evaluate each task
+    with _compute_time_row, and write the CSV from the main process.
     """
 
     granularity = Modeling_Granularity(
@@ -695,7 +692,7 @@ def dse_1(run_dir, num_workers=None):
         TASK_MAX_SEQ = task_combination[3]
         PARALLEL_SEQ = task_combination[4]
 
-        # ---- routing trace 的 npz 路径 ----
+        # ---- Routing trace npz path ----
         from pathlib import Path
         project_root = Path(__file__).resolve().parent.parent.parent  # .../mosaic
         if model_arch.__class__.__name__ == "DeepSeekV3":
@@ -730,7 +727,7 @@ def dse_1(run_dir, num_workers=None):
                 f"Unsupported model architecture: {model_arch.__class__.__name__}"
             )
 
-        # 在主进程里直接加载 routing_array
+        # Load routing_array directly in the main process.
         from mosaic.utils.moe_router_sim import load_npz_routing_keep_shape
 
         _, routing_array = load_npz_routing_keep_shape(npz_trace_file, as_list=False, expected_last_dim=1)
@@ -946,7 +943,7 @@ def dse_1(run_dir, num_workers=None):
                     )
                 )
 
-            # 单线程：直接 for 循环跑任务
+            # Single-threaded: run tasks directly in a for loop.
             rows = []
             for t in tasks:
                 try:
@@ -1005,12 +1002,12 @@ if __name__ == "__main__":
     from datetime import datetime
     import time
 
-    # === 每次运行创建独立目录 ===
+    # === Create a separate directory for each run ===
     run_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = os.path.join("./moe_sparse_rate_decode_runs", run_tag)
     os.makedirs(run_dir, exist_ok=True)
 
-    # === 日志输出到屏幕 + 文件 ===
+    # === Log to both screen and file ===
     log_file = os.path.join(run_dir, "dse.log")
     logging.basicConfig(
         level=logging.ERROR,
@@ -1023,7 +1020,7 @@ if __name__ == "__main__":
     )
 
     start_time = time.time()
-    dse_1(run_dir)  # num_workers 现在其实没用了
+    dse_1(run_dir)  # num_workers is now effectively unused.
     print("dse_1 finished")
     end_time = time.time()
     print("dse_1 time: %s seconds" % (end_time - start_time))

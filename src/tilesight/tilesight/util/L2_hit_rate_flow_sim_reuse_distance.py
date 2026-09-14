@@ -5,7 +5,7 @@ from numpy.random import permutation
 from tilesight.util.extract_blocks import extract_blocks
 from tilesight.util.sdcm import sdcm
 
-# 确保已经定义了之前转换的 extract_blocks 和 sdcm 函数
+# Ensure the previously converted extract_blocks and sdcm functions are defined
 
 def L2_hit_rate_flow_sim_reuse_distance(M, N, K, tb_m, tb_n, tb_k,
                                         L2_Cap, SM_Count, mem_levels,
@@ -98,7 +98,7 @@ def L2_hit_rate_flow_sim_reuse_distance(M, N, K, tb_m, tb_n, tb_k,
 
     return hit_rate
 
-# # 使用实际参数调用函数81024
+# # Call the function with actual parameters 81024
 # M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count, BYTE_per_num, stage_num, block_per_sm=8192,8192,8192,128,128,32,8102431457280,108,2,3,1
 # M, N, K, tb_m, tb_n, tb_k, L2_Cap, SM_Count = 8192,8192,8192,128,128,32,720*1024*1024,128
 # mem_levels = {

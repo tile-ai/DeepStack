@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from mosaic.noc.noc_topo import Hierarchy
     from mosaic.noc.energy_config import NocEnergyConfig
     from mosaic.cost.energy import ChipEnergyConfig
-    # Arch 来自 tilesight，IDE 可能无法解析其路径；仅用于字符串注解，运行时不求值
+    # Arch comes from tilesight; the IDE may not resolve its path. Used only as a string annotation, without runtime evaluation.
     from tilesight.arch.arch_base import Arch  # type: ignore[import-untyped]
 
 log = logging.getLogger(__name__)
@@ -22,83 +22,81 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class OpPerfStats:
-    """
-    一次算子调用的分层性能统计（累积模式）。
+    """Hierarchical, accumulated performance statistics for one operator invocation.
 
-    用法：
+    Example:
         stats = OpPerfStats(op_name="mlp")
-
-        # 多次 append，各 segment 可带独立倍率 n（表示该 segment 执行了 n 次）
         stats.append_hete_list([data_a, data_b], n=1)
         stats.append_traffic(ext_traffic_tp, n=1)
-        stats.append_hete_list([data_c], n=3)           # 重复 3 次的 segment
+        stats.append_hete_list([data_c], n=3)
         stats.append_traffic(ext_traffic_ep, n=3)
-
-        # 获得 e2e 总时间后，一次性计算所有指标
         stats.finalize(total_time_s=e2e_time, h=hierarchy)
         stats.dump_log()
+
+    Each segment may have its own repetition count n. Finalize once the total
+    end-to-end time is known.
     """
 
     op_name: str = ""
-    dump_perf_log: bool = True       # finalize 结束后自动调用 dump_log()
+    dump_perf_log: bool = True       # Automatically call dump_log() after finalize completes.
 
     # ── Timing ──────────────────────────────────────────────────────────────
-    compute_time_s: float = 0.0       # Σ(n_i × t_i)，各 segment 有效计算时间之和
-    comm_time_s: float = 0.0          # Σ(n_i × comm_i)，各 collective 通信时间之和
-    e2e_time_s: float = 0.0           # e2e 总时间（finalize 传入）
-    comm_overlap_pct: float = 0.0     # 通信被 compute overlap 住的比例 %（=1-(e2e-compute)/comm）
+    compute_time_s: float = 0.0       # Σ(n_i × t_i), the sum of effective compute times across segments.
+    comm_time_s: float = 0.0          # Σ(n_i × comm_i), the sum of collective communication times.
+    e2e_time_s: float = 0.0           # Total e2e time (passed to finalize).
+    comm_overlap_pct: float = 0.0     # Percentage of communication overlapped by compute % (=1-(e2e-compute)/comm).
 
     # ── Hierarchical Memory Traffic ──────────────────────────────────────────
-    # 来自 smem_fusion_post_data（tilesight hete_smem_fusion 输出）
-    dram_util_pct: float = 0.0        # DRAM 带宽利用率 %
-    l2_util_pct: float = 0.0          # L2  带宽利用率 %
-    l2_hit_rate_pct: float = 0.0      # L2  命中率 %
-    smem_l1_util_pct: float = 0.0     # Smem/L1 利用率 %
-    smem_bytes_per_tb: float = 0.0    # 每个 thread block 的 smem footprint (bytes)
-    reg_bytes_per_thread: float = 0.0 # 每个 thread 的 register footprint (bytes)
+    # From smem_fusion_post_data (tilesight hete_smem_fusion output).
+    dram_util_pct: float = 0.0        # DRAM bandwidth utilization %.
+    l2_util_pct: float = 0.0          # L2 bandwidth utilization %.
+    l2_hit_rate_pct: float = 0.0      # L2 hit rate %.
+    smem_l1_util_pct: float = 0.0     # Smem/L1 utilization %.
+    smem_bytes_per_tb: float = 0.0    # smem (shared memory) footprint per thread block (bytes).
+    reg_bytes_per_thread: float = 0.0 # Register footprint per thread (bytes).
 
     # ── Compute Utilization ──────────────────────────────────────────────────
-    tensor_util_pct: float = 0.0      # Tensor Core 利用率 %
-    cuda_util_pct: float = 0.0        # CUDA Core (FP32) 利用率 %
-    sfu_util_pct: float = 0.0         # SFU 利用率 %
+    tensor_util_pct: float = 0.0      # Tensor Core utilization %.
+    cuda_util_pct: float = 0.0        # CUDA Core (FP32) utilization %.
+    sfu_util_pct: float = 0.0         # SFU utilization %.
 
     # ── Hierarchical NoC Traffic ─────────────────────────────────────────────
-    noc_total_bytes: float = 0.0          # 逻辑总流量 (tm.totals)，单位 bytes
-    noc_total_energy_j: float = 0.0       # 全链路 NoC 能耗，单位 J
-    noc_max_util: float = 0.0             # 最高链路利用率（e2e 时间平均）
-    noc_mean_util: float = 0.0            # 非零链路平均利用率（e2e 时间平均）
+    noc_total_bytes: float = 0.0          # Total logical traffic (tm.totals), in bytes.
+    noc_total_energy_j: float = 0.0       # NoC energy across all links, in J.
+    noc_max_util: float = 0.0             # Maximum link utilization (averaged over e2e time).
+    noc_mean_util: float = 0.0            # Mean utilization across nonzero links (averaged over e2e time).
     noc_bottleneck_src: int = -1
     noc_bottleneck_dst: int = -1
-    noc_bottleneck_bytes: float = 0.0     # 瓶颈链路承载字节数
-    noc_bottleneck_bw: float = 0.0        # 瓶颈链路带宽 (bytes/s)
-    noc_hop_time_s: float = 0.0           # Σ(n_i × hop_i)，交换机 hop latency 累计 (s)
-    noc_link_time_s: float = 0.0          # Σ(n_i × link_i)，链路传输时间累计 (s)
+    noc_bottleneck_bytes: float = 0.0     # Bytes carried by the bottleneck link.
+    noc_bottleneck_bw: float = 0.0        # Bottleneck link bandwidth (bytes/s).
+    noc_hop_time_s: float = 0.0           # Σ(n_i × hop_i), accumulated switch hop latency (s).
+    noc_link_time_s: float = 0.0          # Σ(n_i × link_i), accumulated link transfer time (s).
     tm: Optional[TrafficMatrix] = field(default=None, repr=False)
     route_stats: Optional["RouteStats"] = field(default=None, repr=False)
 
     # ── Chip Energy (memory hierarchy + compute) × num_devices ───────────────
-    # 反推公式：actual_bytes = util × t_eff × arch.bandwidth
+    # Reverse calculation: actual_bytes = util × t_eff × arch.bandwidth.
     #           actual_ops  = util × t_eff × arch.peak_flops
-    # DRAM/L2 read 直接取 hete row[7]/row[8]（tilesight 精确值）；write = total − read
-    # Smem/Reg：50% read / 50% write（tilesight 无 read/write 分离）
-    # 所有结果乘以 num_devices（finalize 时从 h.num_devices 或显式参数获取）
-    chip_dram_energy_j:    float = 0.0    # DRAM 访存能耗 × devices (J)
-    chip_l2_energy_j:      float = 0.0    # L2   访存能耗 × devices (J)
-    chip_smem_energy_j:    float = 0.0    # Smem 访存能耗 × devices (J)
-    chip_reg_energy_j:     float = 0.0    # Reg  访存能耗 × devices (J)
-    chip_memory_energy_j:  float = 0.0    # 全层级内存能耗之和 × devices (J)
-    chip_tensor_energy_j:  float = 0.0    # Tensor Core 计算能耗 × devices (J)
-    chip_cuda_energy_j:    float = 0.0    # CUDA Core   计算能耗 × devices (J)
-    chip_sfu_energy_j:     float = 0.0    # SFU         计算能耗 × devices (J)
-    chip_compute_energy_j: float = 0.0    # 全计算单元能耗之和 × devices (J)
-    chip_static_energy_j:  float = 0.0    # 静态漏电能耗 = static_power × e2e_time × devices (J)
-    chip_total_energy_j:   float = 0.0    # 芯片总能耗（内存+计算+静态）× devices (J)
-    chip_num_devices:      int   = 1      # 计算能耗时使用的设备数（用于换算 per-device）
+    # DRAM/L2 read bytes come directly from hete row[7]/row[8] (exact tilesight values); write = total − read.
+    # Smem/Reg: 50% read / 50% write (tilesight does not separate reads and writes).
+    # Multiply all results by num_devices (obtained from h.num_devices or an explicit argument during finalize).
+    chip_dram_energy_j:    float = 0.0    # DRAM access energy × devices (J).
+    chip_l2_energy_j:      float = 0.0    # L2 access energy × devices (J).
+    chip_smem_energy_j:    float = 0.0    # Smem (shared memory) access energy × devices (J).
+    chip_reg_energy_j:     float = 0.0    # Reg access energy × devices (J).
+    chip_memory_energy_j:  float = 0.0    # Sum of energy across all memory levels × devices (J).
+    chip_tensor_energy_j:  float = 0.0    # Tensor Core compute energy × devices (J).
+    chip_cuda_energy_j:    float = 0.0    # CUDA Core compute energy × devices (J).
+    chip_sfu_energy_j:     float = 0.0    # SFU compute energy × devices (J).
+    chip_compute_energy_j: float = 0.0    # Sum of energy across all compute units × devices (J).
+    chip_static_energy_j:  float = 0.0    # Static leakage energy = static_power × e2e_time × devices (J).
+    chip_total_energy_j:   float = 0.0    # Total chip energy (memory + compute + static) × devices (J).
+    chip_num_devices:      int   = 1      # Number of devices used in energy calculations (for conversion to per-device values).
 
-    # ── 内部累积器（不出现在 __init__ 签名中）────────────────────────────────
+    # ── Internal accumulators (excluded from the __init__ signature) ────────────────────────────────
     # _hete_rows  : list of (smem_fusion_post_data, n: float)
     _hete_rows: list = field(default_factory=list, init=False, repr=False)
-    # _traffic_mats : list of scaled np.ndarray（已在 append_traffic 时乘以 n）
+    # _traffic_mats : list of scaled np.ndarray (already multiplied by n in append_traffic).
     _traffic_mats: list = field(default_factory=list, init=False, repr=False)
     # _comm_time_accum : Σ(n_i × comm_i)
     _comm_time_accum: float = field(default=0.0, init=False, repr=False)
@@ -111,18 +109,13 @@ class OpPerfStats:
     # ────────────────────────────────────────────────────────────────────────
 
     def append_hete(self, smem_fusion_post_data, n: float = 1.0) -> None:
-        """追加单条 smem_fusion_post_data，倍率 n（该 segment 执行了 n 次）。"""
+        """Append one smem_fusion_post_data row for a segment executed n times."""
         self._hete_rows.append((smem_fusion_post_data, float(n)))
 
     def append_hete_list(self, smem_fusion_list: list, n: float = 1.0) -> None:
-        """
-        追加多条 smem_fusion_post_data，所有行共享倍率 n。
-
-        n 的语义：该 segment 实际执行了 n 次。
-          - 每行有效时间     t_eff = row[0] × n
-          - util 加权贡献   t_eff × util_fraction（util fraction 本身不变）
-          - IO bytes 贡献   row[7/8] × n
-          - footprint       max（不随 n 变化）
+        """Append multiple smem_fusion_post_data rows with a shared repetition count n.
+        Effective time is row[0]*n; utilization contributes effective_time*util_fraction.
+        IO bytes contribute row[7/8]*n. Footprints use the maximum and do not scale with n.
         """
         for row in smem_fusion_list:
             self._hete_rows.append((row, float(n)))
@@ -135,14 +128,10 @@ class OpPerfStats:
         comm_time_s: float | None = None,
         n: float = 1.0,
     ) -> None:
-        """
-        追加一个已展开的 extended traffic matrix，倍率 n，以及对应的通信时间分量。
-
-        traffic      : 已展开的流量矩阵，乘以 n 后存入累积列表。
-        link_time_s  : 链路传输时间（traffic / bandwidth bottleneck），单位 s。
-        hop_time_s   : 交换机 hop latency 之和，单位 s。
-        comm_time_s  : 总通信时间，单位 s；省略时取 link_time_s + hop_time_s。
-        n            : 该 collective 实际执行了 n 次。
+        """Append expanded traffic and communication timing for n executions.
+        traffic is multiplied by n before storage. link_time_s is transfer time from the
+        bandwidth bottleneck; hop_time_s is accumulated switch-hop latency. comm_time_s
+        defaults to link_time_s + hop_time_s. All times are in seconds.
         """
         eff_comm = (link_time_s + hop_time_s) if comm_time_s is None else comm_time_s
         self._traffic_mats.append(traffic * n if n != 1.0 else traffic.copy())
@@ -157,13 +146,9 @@ class OpPerfStats:
         comm_time_s: float | None = None,
         n: float = 1.0,
     ) -> None:
-        """
-        追加纯通信时间（无 traffic matrix），适用于 PP send/recv 等 P2P 场景。
-
-        link_time_s  : 链路传输时间，单位 s。
-        hop_time_s   : hop latency，单位 s。
-        comm_time_s  : 总通信时间；省略时取 link_time_s + hop_time_s。
-        n            : 实际执行了 n 次。
+        """Append communication timing without a traffic matrix, for example PP send/recv.
+        link_time_s and hop_time_s are in seconds. comm_time_s defaults to their sum.
+        n is the execution count.
         """
         eff_comm = (link_time_s + hop_time_s) if comm_time_s is None else comm_time_s
         self._comm_time_accum += eff_comm    * n
@@ -171,14 +156,10 @@ class OpPerfStats:
         self._link_time_accum += link_time_s * n
 
     def absorb(self, other: "OpPerfStats") -> None:
-        """
-        将另一个 OpPerfStats 的内部累积器合并到本对象。
-
-        适用场景：将 kv-无关阶段（_base_stats）的 hete/traffic 数据注入
-        每个 per-kv stats 对象，避免手动访问私有字段。
-
-        仅合并累积器（_hete_rows、_traffic_mats、_*_time_accum），
-        不复制已 finalize 的统计结果字段。
+        """Merge another OpPerfStats object's internal accumulators into this object.
+        This can inject KV-independent base statistics into per-KV statistics without
+        accessing private fields. Only _hete_rows, _traffic_mats, and timing accumulators
+        are merged; finalized result fields are not copied.
         """
         self._hete_rows.extend(other._hete_rows)
         self._traffic_mats.extend(other._traffic_mats)
@@ -199,36 +180,22 @@ class OpPerfStats:
         num_devices: int = 1,
         chip_energy_config: "ChipEnergyConfig | None" = None,
     ) -> None:
-        """
-        以 e2e 总时间 total_time_s 为分母，一次性计算所有性能指标。
+        """Finalize all metrics using end-to-end total_time_s as the denominator.
 
-        hete 加权规则：
-          util           : Σ(n_i × t_i × util_i) / total_time_s
-          l2_hit_rate    : 1 - Σ(n_i × ddr_read_io_i) / Σ(n_i × l2_read_io_i)
-          footprint      : max（不随 n 变化）
-          compute_time_s : Σ(n_i × t_i)
+        Utilization is sum(n_i*t_i*util_i)/total_time_s. L2 hit rate is
+        1 - sum(n_i*ddr_read_io_i)/sum(n_i*l2_read_io_i). Footprints use the maximum;
+        compute_time_s is sum(n_i*t_i). Traffic matrices are already scaled by n when
+        appended, so they are summed directly. NoC utilization is traffic/time/bandwidth.
+        Communication overlap is max(0, 1 - (e2e-compute)/comm)*100.
 
-        NoC 规则：
-          traffic 在 append_traffic 时已乘以 n，finalize 内直接对矩阵求和；
-          util = (Σ traffic_ij / total_time_s) / bw_ij（e2e 时间平均利用率）
+        Chip accounting reconstructs bytes and operations from utilization and effective
+        time. DRAM/L2 reads use TileSight row[7]/row[8]; writes are total minus reads.
+        Shared-memory/register traffic assumes equal reads and writes. Scale energy by
+        h.num_devices when h is supplied, otherwise by the explicit num_devices.
 
-        comm_overlap_pct 规则：
-          = max(0, 1 - (e2e - compute) / comm) × 100
-
-        chip energy 规则（需要 arch）：
-          actual_bytes = util × t_eff × arch.bandwidth
-          actual_ops   = util × t_eff × arch.peak_flops
-          DRAM/L2 read 取 hete row[7]/row[8]（tilesight 精确值）；write = total − read
-          Smem/Reg 假设 read:write = 1:1
-          最终结果 × num_devices（优先取 h.num_devices；无 h 时取显式 num_devices）
-
-        参数：
-            total_time_s  : e2e 总时间 (s)
-            h             : Hierarchy，用于构建 bw/energy 矩阵；为 None 时跳过 NoC 计算
-            energy_config : 可选，覆盖 h.energy_config
-            arch          : Arch，用于计算芯片内存/计算能耗；为 None 时跳过
-            num_devices   : 设备数，h 存在时自动取 h.num_devices，否则使用此参数
-            chip_energy_config: 可选，覆盖 arch.chip_energy_config
+        h supplies the NoC hierarchy; None skips NoC calculations. energy_config may
+        override h.energy_config. arch supplies chip memory/compute parameters; None
+        skips chip accounting. chip_energy_config may override arch.chip_energy_config.
         """
         T = float(total_time_s)
         self.e2e_time_s      = T
@@ -328,25 +295,14 @@ class OpPerfStats:
         *,
         chip_energy_config: "ChipEnergyConfig | None" = None,
     ) -> None:
-        """
-        从 _hete_rows 反推实际 bytes / ops，调用 EnergyModel 计算芯片能耗。
-
-        反推公式（per segment，per GPU）：
-          actual_bytes = util × t_eff × arch.bandwidth
-          actual_ops   = util × t_eff × arch.peak_flops
-
-          DRAM read = row[7] × n（tilesight 精确统计值）
-          DRAM write = max(0, ddr_util × t_eff × arch.ddr_bandwidth − ddr_read)
-          L2   read = row[8] × n（tilesight 精确统计值）
-          L2   write = max(0, l2_util × t_eff × arch.l2_bandwidth − l2_read)
-          Smem：total = smem_util × t_eff × arch.smem_bandwidth，50/50 split
-          Reg：tensor_ops × 3 × 2B + cuda_ops × 3 × 4B + sfu_ops × 2 × 4B，50/50 split
-
-          tensor_ops = tensor_util × t_eff × arch.fp16_tensor_flops
-          cuda_ops   = cuda_util   × t_eff × arch.fp32_cuda_core_flops
-          sfu_ops    = sfu_util    × t_eff × arch.sfu_flops
-
-        所有结果 × num_devices（单 GPU 能耗 → 全集群总能耗）。
+        """Reconstruct bytes and operations from _hete_rows and evaluate chip energy.
+        For each segment and GPU, bytes = utilization * effective_time * bandwidth,
+        and operations = utilization * effective_time * peak_flops.
+        DRAM/L2 reads use row[7/8]*n; writes are max(0, reconstructed total - reads).
+        Shared-memory traffic is smem_util*t_eff*smem_bandwidth, split equally into reads
+        and writes. Register traffic uses tensor/CUDA/SFU operation counts and operand
+        widths, also split equally. Tensor, CUDA, and SFU counts use their respective
+        peak throughput. Multiply all resulting energies by num_devices.
         """
         from mosaic.cost.energy import EnergyModel
         em = EnergyModel(
@@ -364,8 +320,8 @@ class OpPerfStats:
             ddr_util     = float(row[1])
             l2_util      = float(row[3])
             smem_util    = float(row[5])
-            ddr_read_io  = float(row[7]) * n   # tilesight 精确 read bytes
-            l2_read_io   = float(row[8]) * n   # tilesight 精确 read bytes
+            ddr_read_io  = float(row[7]) * n   # Exact read bytes from tilesight.
+            l2_read_io   = float(row[8]) * n   # Exact read bytes from tilesight.
             t_util       = float(row[9])
             c_util       = float(row[10])
             s_util       = float(row[11])
@@ -384,7 +340,7 @@ class OpPerfStats:
             cuda_ops     += c_util * t_eff * arch.fp32_cuda_core_flops
             sfu_ops      += s_util * t_eff * arch.sfu_flops
 
-        # reg traffic: 每个 op 读写 3/2 个寄存器操作数
+        # reg traffic: each op reads/writes 3/2 register operands.
         # reg_io = smem_io + tensor_ops * 2 * 2 + cuda_ops * 2 * 4 + sfu_ops * 2 * 4
         tc_m, tc_n, tc_k = arch.get_tensor_core_minimum_ptx()
         tc_regio_to_flops_ratio = (2*tc_m*tc_n+2*tc_m*tc_k+4*tc_n*tc_k)/(2*tc_m*tc_n*tc_k)
@@ -401,7 +357,7 @@ class OpPerfStats:
         tensor_e = em.get_tensor_core_energy(tensor_ops)                  * pj2j
         cuda_e   = em.get_cuda_core_energy  (cuda_ops)                    * pj2j
         sfu_e    = em.get_sfu_energy        (sfu_ops)                     * pj2j
-        # 静态功耗：static_power (W) × e2e_time (s)，与运算内容无关，只与时间有关
+        # Static power: static_power (W) × e2e_time (s), dependent only on elapsed time, regardless of the computation.
         static_e = em.get_static_power() * self.e2e_time_s
 
         self.chip_dram_energy_j    = dram_e   * nd
@@ -421,7 +377,7 @@ class OpPerfStats:
     # ────────────────────────────────────────────────────────────────────────
 
     def to_dict(self) -> dict:
-        """序列化为纯 Python dict（可直接传给 json.dump）。"""
+        """Serialize to a plain Python dictionary suitable for json.dump."""
         T = self.e2e_time_s if self.e2e_time_s > 0 else 1.0
         nd = float(self.chip_num_devices) if self.chip_num_devices > 0 else 1.0
         compute_pct = self.compute_time_s / T * 100
@@ -650,7 +606,7 @@ class OpPerfStats:
         return "\n".join([border, head, border] + body + [border])
 
     def render_human(self, markdown: bool = False, title_level: int = 2) -> str:
-        """生成人类可读文本，信息对齐 dump_log（表格版）。"""
+        """Render human-readable tabular text with the same information as dump_log."""
         T = self.e2e_time_s if self.e2e_time_s > 0 else 1.0
         nd = float(self.chip_num_devices) if self.chip_num_devices > 0 else 1.0
         compute_pct = self.compute_time_s / T * 100
@@ -788,18 +744,18 @@ class OpPerfStats:
         return "\n\n".join(blocks)
 
     def dump_log(self) -> None:
-        """用 log.info 分层打印所有统计。"""
+        """Log all hierarchical statistics using log.info."""
         for line in self._build_detail_lines():
             log.info("%s", line)
 
     def dump_json(self, path: str) -> None:
-        """序列化写入 JSON 文件。"""
+        """Serialize the statistics to a JSON file."""
         with open(path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
         log.info("OpPerfStats [%s] saved to %s", self.op_name, path)
 
     def dump_human(self, path: str, markdown: bool = False) -> None:
-        """写入人类可读格式（txt/md）。"""
+        """Write human-readable text or Markdown output."""
         with open(path, "w", encoding="utf-8") as f:
             f.write(self.render_human(markdown=markdown))
             f.write("\n")

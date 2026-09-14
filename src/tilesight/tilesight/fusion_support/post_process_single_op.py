@@ -1,12 +1,12 @@
 from tilesight.arch import Arch
 
 def hyper_post_process_tensor_core_op(ret, arch:Arch , data_bytes):
-    # 解析返回值
+    # Parse return values
     ddr_io, l2_hit_rate, l2_io, smem_footprint, smem_l1_io, reg_footprint, compute_flops, ddr_read_io, l2_read_io = ret
     
     
 
-    # 计算各种时间和利用率
+    # Calculate the various times and utilization values
     ddr_time = ddr_io/arch.ddr_bandwidth
     l2_time = l2_io/arch.l2_bandwidth
     smem_l1_time = smem_l1_io/arch.smem_bandwidth
@@ -33,10 +33,10 @@ def hyper_post_process_tensor_core_op(ret, arch:Arch , data_bytes):
     return result
 
 def hyper_post_process_cuda_core_op(ret, arch:Arch, data_bytes):
-    # 解析返回值
+    # Parse return values
     ddr_io, l2_hit_rate, l2_io, smem_footprint, smem_l1_io, reg_footprint, compute_flops, ddr_read_io, l2_read_io = ret
     
-    # 计算各种时间和利用率
+    # Calculate the various times and utilization values
     ddr_time = ddr_io/arch.ddr_bandwidth
     l2_time = l2_io/arch.l2_bandwidth
     smem_l1_time = smem_l1_io/arch.smem_bandwidth
@@ -57,10 +57,10 @@ def hyper_post_process_cuda_core_op(ret, arch:Arch, data_bytes):
     return result
 
 def hyper_post_process_sfu_core_op(ret, arch:Arch):
-    # 解析返回值
+    # Parse return values
     ddr_io, l2_hit_rate, l2_io, smem_footprint, smem_l1_io, reg_footprint, compute_flops, ddr_read_io, l2_read_io = ret
     
-    # 计算各种时间和利用率
+    # Calculate the various times and utilization values
     ddr_time = ddr_io/arch.ddr_bandwidth
     l2_time = l2_io/arch.l2_bandwidth
     smem_l1_time = smem_l1_io/arch.smem_bandwidth

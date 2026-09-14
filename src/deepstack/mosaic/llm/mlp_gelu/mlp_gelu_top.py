@@ -1,6 +1,6 @@
-# 非门控 2-GEMM MLP: y = W2 @ gelu(W1 @ x)
-# W1 [hidden, up_hidden], W2 [up_hidden, out_hidden]; out_hidden 默认等于 hidden,
-# 也可不同 (如 vision patch merger 4608->4608->2048, audio 出口 proj 1280->1280->2048)。
+# Non-gated 2-GEMM MLP: y = W2 @ gelu(W1 @ x)
+# W1 [hidden, up_hidden], W2 [up_hidden, out_hidden]; out_hidden defaults to hidden,
+# but may differ (e.g., vision patch merger 4608->4608->2048, audio output proj 1280->1280->2048).
 from mosaic.parallelism import ParallelScheme
 from mosaic.noc.noc_topo import Hierarchy
 from mosaic.utils import OpBytes, Modeling_Granularity

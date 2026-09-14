@@ -12,13 +12,11 @@ log = logging.getLogger(__name__)
 
 
 def get_dsa_indexer_footprint(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme):
-    '''
-    DSA lightning indexer 相对 MLA 的额外 footprint。
-    返回 (max_activation, mem_weight, mem_index_cache)。
-
-    - indexer 权重在 tp 维度上复制 (不切分), 见 dsa_indexer_coarse.py 的并行假设。
-    - index-k cache: 每 token 一个 D_i 维向量 (MQA 形式单 head), 沿 cp 切分, tp 复制。
-    '''
+    """Estimate the DSA indexer's additional footprint relative to MLA.
+    Return (max_activation, mem_weight, mem_index_cache).
+    Indexer weights are replicated across TP. The index-key cache holds one D_i
+    vector per token, sharded across CP and replicated across TP.
+    """
     assert model_arch.dsa_arch is not None
     assert model_arch.mla_arch is not None
     dsa_arch = model_arch.dsa_arch
@@ -37,7 +35,7 @@ def get_dsa_indexer_footprint(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arc
     shard_seq_q = math.ceil(seq / atten_parallel.sp)
     shard_cached_kv = math.ceil(cached_kv / atten_parallel.cp)
 
-    # 权重 (tp 复制): wq_b + wk + weights_proj (+ k_norm, 可忽略)
+    # Weights (replicated across tp): wq_b + wk + weights_proj (+ k_norm, negligible)
     wq_b_weight = q_down_hidden * index_n_heads * index_head_dim * weight_bytes
     wk_weight = hidden * index_head_dim * weight_bytes
     weights_proj_weight = hidden * index_n_heads * weight_bytes
@@ -46,7 +44,7 @@ def get_dsa_indexer_footprint(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arc
     dp_divisor = np.uint64(parallel.dp) if parallel.fsdp else np.uint64(1)
     mem_weight = mem_weight // dp_divisor
 
-    # index-k cache (沿 cp 切分)
+    # index-k cache (sharded along cp)
     mem_index_cache = in_bytes * shard_bs * shard_cached_kv * index_head_dim
 
     # activation: q_i + index_scores (fp32) + topk indices (int32)
@@ -59,10 +57,10 @@ def get_dsa_indexer_footprint(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arc
 
 
 def get_dsa_mla_absorb_and_no_absorb_footprint(bs:int, seq:int, cached_kv:int, model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme):
-    '''
-    Decode: MLA (absorb + no absorb 权重都保留) + DSA indexer 的总 footprint。
-    与 get_mla_absorb_and_no_absorb_footprint 接口一致, kv cache 一项包含 index-k cache。
-    '''
+    """Estimate decode memory for MLA with both absorbed and unabsorbed weights plus
+    the DSA indexer. Match get_mla_absorb_and_no_absorb_footprint; the KV-cache
+    component includes the index-key cache.
+    """
     mla_max_activation, mla_mem_weight, mla_mem_kv_cache = get_mla_absorb_and_no_absorb_footprint(bs, seq, cached_kv, model_arch, parallel, atten_parallel)
     idx_max_activation, idx_mem_weight, idx_mem_index_cache = get_dsa_indexer_footprint(bs, seq, cached_kv, model_arch, parallel, atten_parallel)
 
@@ -74,9 +72,7 @@ def get_dsa_mla_absorb_and_no_absorb_footprint(bs:int, seq:int, cached_kv:int, m
 
 
 def get_dsa_mla_no_absorb_footprint(bs:int, seq:int, model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme):
-    '''
-    Prefill: MLA (no absorption) + DSA indexer 的总 footprint。
-    '''
+    """Estimate prefill memory for unabsorbed MLA plus the DSA indexer."""
     mla_max_activation, mla_mem_weight, mla_mem_kv_cache = get_mla_no_absorb_footprint(bs, seq, model_arch, parallel, atten_parallel)
     idx_max_activation, idx_mem_weight, idx_mem_index_cache = get_dsa_indexer_footprint(bs, seq, seq, model_arch, parallel, atten_parallel)
 

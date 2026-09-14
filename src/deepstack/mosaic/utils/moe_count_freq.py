@@ -5,7 +5,7 @@ import logging
 log = logging.getLogger(__name__) 
 
 
-# ===================== 统计函数 =====================
+# ===================== Statistics functions =====================
 
 def count_expert_frequency_prefill(prefill_numpy, total_experts):
     num_layers = prefill_numpy.shape[0]
@@ -31,12 +31,11 @@ def count_expert_frequency_decode(decode_numpy, total_experts):
     return freq_matrix
 
 def count_expert_frequency_flatten(flat_numpy: np.ndarray, total_experts: int, group_tokens: int) -> np.ndarray:
-    """
-    统计形状为 [tokens, num_activated_experts] 的激活专家频次。
-    将 token 按窗口大小 group_tokens 分组，每组分别统计频次，
-    返回形状为 [num_groups, total_experts] 的矩阵，其中
-      num_groups = ceil(tokens / group_tokens)。
-    最后一组若不足 group_tokens 个 token 也会被统计。
+    """Count expert activations in an array of shape [tokens, num_activated_experts].
+    Group tokens into windows of group_tokens and count frequencies separately
+    for each group. Return a matrix of shape [num_groups, total_experts], where
+    num_groups = ceil(tokens / group_tokens).
+    Include the final group even if it contains fewer than group_tokens tokens.
     """
     assert flat_numpy.ndim == 2, "输入应为二维 [tokens, num_activated_experts]"
     assert group_tokens > 0, "group_tokens 必须为正整数"
@@ -56,7 +55,7 @@ def count_expert_frequency_flatten(flat_numpy: np.ndarray, total_experts: int, g
     # print(f"freq_matrix: {freq_matrix}")
     return freq_matrix
 
-# ===================== 截断函数 =====================
+# ===================== Truncation functions =====================
 
 def truncate_decode(decode_numpy, new_num_iters):
     assert decode_numpy.ndim == 4, "decode_numpy 必须是 4 维的"
@@ -72,7 +71,7 @@ def truncate_prefill(prefill_numpy, new_num_tokens):
         raise ValueError(f"new_num_tokens 必须在 1 到 {original_tokens} 之间")
     return prefill_numpy[:, :new_num_tokens, :]
 
-# ===================== 分组聚合（EP 设备） =====================
+# ===================== Grouped aggregation (EP devices) =====================
 
 def build_group_index(total_experts: int, EP: int) -> np.ndarray:
     expert_ids = np.arange(total_experts)
@@ -89,7 +88,7 @@ def aggregate_freq_by_groups(freq_matrix: np.ndarray, group_ids: np.ndarray, EP:
             out[:, g] = freq_matrix[:, cols].sum(axis=1)
     return out
 
-# ===================== 可视化 =====================
+# ===================== Visualization =====================
 
 def _safe_title_to_filename(title: str) -> str:
     bad = [' ', '(', ')', ':', '/', '\\', '|', '=']
@@ -118,23 +117,25 @@ def plot_heatmap(data, title, xlabel="Expert ID", ylabel="Layer / Step Index", e
 
 
 def count_expert_frequency_flatten_wrapper(flatten_numpy: np.ndarray, group_tokens: int, total_experts: int, EP: int) -> np.ndarray:
-    """
-    分组统计 [tokens, num_activated_experts] 的专家频次，并按 EP 设备聚合。
-    返回形状为 [num_groups, EP] 的矩阵，其中 num_groups=ceil(tokens/group_tokens)。
-    expert_row: 该 (group_idx, ep_idx) 对应专家分区内的每个 expert 激活次数(从0~total_experts/ep-1),
-                    形状为 [total_experts/EP]，其和等于 np.max(freq_groups)
+    """Count expert activations by token group in [tokens, num_activated_experts]
+    and aggregate by EP device. Return a matrix of shape [num_groups, EP], where
+    num_groups = ceil(tokens/group_tokens).
+
+    expert_row contains each expert's activation count within the expert partition
+    for (group_idx, ep_idx), indexed from 0 to total_experts/ep-1.
+    It has shape [total_experts/EP], and its sum equals np.max(freq_groups).
     """
 
     assert flatten_numpy.ndim == 2, "flatten_numpy 应为二维 [tokens, num_activated_experts]"
     num_tokens, num_activated_experts = flatten_numpy.shape
 
-    # 先按 expert 粒度统计，每组得到 [1, total_experts]，整体为 [num_groups, total_experts]
+    # First count by expert: [1, total_experts] per group, [num_groups, total_experts] overall
     # num_groups = ceil(tokens/group_tokens)
     freq = count_expert_frequency_flatten(flatten_numpy, total_experts, group_tokens)
     # print(freq.shape)
     
 
-    # 再按 EP 设备聚合，每组 [total_experts] → [EP]
+    # Then aggregate by EP device: [total_experts] -> [EP] per group
     group_ids = build_group_index(total_experts, EP)
     freq_groups  = aggregate_freq_by_groups(freq, group_ids, EP)  # [num_groups, EP]
     # print(freq_groups.shape)
@@ -152,7 +153,7 @@ def count_expert_frequency_flatten_wrapper(flatten_numpy: np.ndarray, group_toke
     log.info("repeat_times(dp * sp): %s", repeat_times)
 
 
-    # 寻找这个freq_groups中，最大的值，并返回其索引
+    # Find the maximum value in this freq_groups and return its index
     max_activated_experts_times_per_device = np.max(freq_groups)
     log.info("max activated tokens per device: %s", max_activated_experts_times_per_device)
 
@@ -173,34 +174,35 @@ def extract_expert_row_for_max(
     total_experts: int,
     EP: int,
 ):
-    """
-    返回 freq_groups 全局最大位置对应的专家明细行：
-      - group_idx: 组索引（按 group_tokens 分组后的第几组）
-      - ep_idx:    设备索引（0..EP-1）
-      - expert_row: 该 (group_idx, ep_idx) 对应专家分区内的每个 expert 激活次数，
-                    形状为 [total_experts/EP]，其和等于 np.max(freq_groups)
-      - freq_groups: [num_groups, EP]
-    不改变原有 wrapper 的返回，避免破坏调用方；如需直接拿明细，调用本函数即可。
+    """Return the per-expert detail row at the global maximum of freq_groups:
+      - group_idx: Group index after grouping by group_tokens.
+      - ep_idx: Device index (0..EP-1).
+      - expert_row: Activation count for each expert in the partition corresponding
+        to (group_idx, ep_idx). Shape [total_experts/EP]; its sum equals np.max(freq_groups).
+      - freq_groups: Shape [num_groups, EP].
+
+    Preserves the existing wrapper's return format to avoid breaking callers.
+    Call this function directly when expert details are needed.
     """
     assert flatten_numpy.ndim == 2, "flatten_numpy 应为二维 [tokens, num_activated_experts]"
     assert group_tokens > 0, "group_tokens 必须为正整数"
     assert total_experts % EP == 0, "total_experts 应能被 EP 整除"
 
-    # 先得到每组的专家频次 [num_groups, total_experts]
+    # First obtain expert frequencies per group: [num_groups, total_experts]
     freq = count_expert_frequency_flatten(flatten_numpy, total_experts, group_tokens)
-    # 用 group_ids 聚合为设备维度
+    # Aggregate into the device dimension using group_ids
     group_ids = build_group_index(total_experts, EP)
     freq_groups = aggregate_freq_by_groups(freq, group_ids, EP)  # [num_groups, EP]
 
-    # 找到全局最大 (group_idx, ep_idx)
+    # Find the global maximum (group_idx, ep_idx)
     flat_idx = np.argmax(freq_groups)
     group_idx, ep_idx = np.unravel_index(flat_idx, freq_groups.shape)
 
-    # 取该设备对应的专家分区列集合，并返回该组的专家明细
+    # Select the expert-partition columns for this device and return that group's per-expert details
     cols = (group_ids == ep_idx)
     expert_row = freq[group_idx, cols]
 
-    # 验证和为该位置的聚合值
+    # Verify that the sum equals the aggregate value at this position
     if int(expert_row.sum()) != int(freq_groups[group_idx, ep_idx]):
         log.warning("expert_row 求和与聚合值不一致: %s != %s", expert_row.sum(), freq_groups[group_idx, ep_idx])
 
@@ -209,30 +211,30 @@ def extract_expert_row_for_max(
     # return group_idx, ep_idx, expert_row, freq_groups
     return expert_row
 
-# ===================== 主流程 =====================
+# ===================== Main workflow =====================
 
 if __name__ == "__main__":
-    # 1) 读取数据
+    # 1) Read data.
     npz_path = "../data/aime_ds_r1/moe_activations_batch0.npz"
     prefill_numpy, decode_numpy = load_npz_routing_keep_shape(npz_path, as_list=False)
     logging.basicConfig(
-        level=logging.INFO,                              # 全局日志级别
+        level=logging.INFO,                              # Global logging level.
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         datefmt="%H:%M:%S",
     )
     # prefill: [num_layers, num_tokens, k]
     # decode : [num_iters, num_layers, batch, k]
 
-    # ===== 可配置参数 =====
-    model_name = "DeepSeek-R1"   # <- 这里传入你的模型名
-    total_experts = 256            # X 轴 expert 总数
-    EP = 16                         # 每次激活专家数（也代表 device 组数）
+    # ===== Configurable parameters =====
+    model_name = "DeepSeek-R1"   # <- Supply the model name here.
+    total_experts = 256            # Total number of experts on the X axis.
+    EP = 16                         # Number of experts activated each time (also the number of device groups).
 
     group_tokens = 1024
 
     routing_array = decode_numpy.reshape(-1, decode_numpy.shape[-1])
 
-    # 取前512个
+    # Take the first 512
     routing_array = routing_array[:1024]
     # print(routing_array.shape)
     # print(routing_array)

@@ -61,7 +61,7 @@ MODEL_REG = {
 
 
 
-# 全局指定使用的 arch_noc 组合函数
+# Globally select the arch_noc combination function.
 # GET_ARCH_NOC_COMBINATIONS = arch_noc_combinations1110
 # GET_ARCH_NOC_COMBINATIONS = h100_8_to_64_arch_noc_combinations
 # GET_ARCH_NOC_COMBINATIONS = arch_noc_combinations_scale_64_512_nodes
@@ -80,7 +80,7 @@ from mosaic.dse_space.arch_noc_combinations import (
 GET_ARCH_NOC_COMBINATIONS = multi_gpu_validation_arch_noc_combinations
 # GET_ARCH_NOC_COMBINATIONS = h200_no_nvswitch_arch_noc_combinations
 
-# 全局指定使用的 task combination 函数
+# Globally select the task combination function.
 # GET_TASK_COMBINATIONS = task_combination_2
 # GET_TASK_COMBINATIONS = customized_decoding_task_combination
 # GET_TASK_COMBINATIONS = scale_64_512_nodes_task_combination_decode
@@ -100,7 +100,7 @@ GET_TASK_COMBINATIONS = hybrid_decode_task_combination_0301
 TP_TRANSFORM_MOE_MODES: list[str] = ["replace_only", "none"]          # change to ["none", "replace_only"] for both
 # TP_TRANSFORM_MOE_MODES: list[str] = ["replace_only"]  
 
-# 子进程内的全局缓存，避免把 numpy 数组跨进程序列化
+# Global cache within each subprocess, avoiding NumPy array serialization between processes.
 _ROUTING_ARRAY = None
 
 
@@ -113,7 +113,7 @@ def _format_duration(seconds: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 def _init_worker(npz_trace_file: str):
-    """每个子进程启动时执行：只在子进程里加载 routing array，一次到位"""
+    """Initialize each worker by loading its routing array once inside the child process."""
     from mosaic.utils.moe_router_sim import load_npz_routing_keep_shape
     global _ROUTING_ARRAY
     _, decode_array = load_npz_routing_keep_shape(npz_trace_file, as_list=False)
@@ -386,7 +386,7 @@ def modeling_decode(model_arch:LLM_Arch, bs:int, seq:int, cached_kv_list:list[in
             pp_op_stats.append_traffic(traffic, hop_time_s=pp_hop_latency, link_time_s=pp_ext_max, comm_time_s=pp_overall_time)
 
         # energy_record.add_tm(tm)
-        # 取流水段之间的最大时延；若为空则为 0
+        # Take the maximum latency across pipeline stages, or 0 if empty.
         return (max(pp_time_list), pp_op_stats) if pp_time_list else (0.0, None)
 
     pp_p2p_time, pp_op_stats = get_pipeline_time()
@@ -480,19 +480,19 @@ def modeling_decode(model_arch:LLM_Arch, bs:int, seq:int, cached_kv_list:list[in
     representative_kv_len = cached_kv_list[middle_kv_idx]
     return time_total_list, model_stats, representative_kv_len
 
-# ---------- 多进程 worker：单个 (scheme, kv_len) 任务 ----------
+# ---------- Multiprocessing worker: one (scheme, kv_len) task ----------
 def _compute_time_row(args):
     (
         combo_idx,              # int -> arch_noc_combinations1()[combo_idx]
         model_key,              # str -> MODEL_REG[model_key]()
         BS, minibatch, sampled_kv_len, seq,
-        parallel_scheme,        # ParallelScheme (dataclass，顶层定义，可 pickle)
+        parallel_scheme,        # ParallelScheme (top-level dataclass, picklable).
         max_activation, global_total_weight, global_kv_cache,
-        granularity_tuple,      # (mode, comp_comm_overlap, auto_tune) 纯标量
+        granularity_tuple,      # (mode, comp_comm_overlap, auto_tune): scalar values only.
         non_moe_parallel,       # ParallelScheme
-        proc_log_dir,           # str or None，None 表示不写日志
-        run_dir,                # run 根目录
-        stats_bundle_root,      # stats bundle 根目录
+        proc_log_dir,           # str or None; None disables logging.
+        run_dir,                # Run root directory.
+        stats_bundle_root,      # Stats bundle root directory.
         tp_transform_moe,       # str: "none" | "replace_only"
     ) = args
 
@@ -510,13 +510,13 @@ def _compute_time_row(args):
             root_logger.addHandler(handler)
         logging.info(f"Worker {os.getpid()} is running")
 
-    # 在子进程里重建 heavy 对象
+    # Rebuild heavy objects in the subprocess.
     # arch, noc = arch_noc_combinations1110()[combo_idx]
     arch, noc = GET_ARCH_NOC_COMBINATIONS()[combo_idx]
     # arch, noc = h100_8_to_64_arch_noc_combinations()[combo_idx]
     model_arch = MODEL_REG[model_key]()
 
-    # 重建 granularity
+    # Rebuild granularity.
     granularity = Modeling_Granularity(
         mode=granularity_tuple[0],
         comp_comm_overlap=granularity_tuple[1],
@@ -524,7 +524,7 @@ def _compute_time_row(args):
         dump_perf_log=granularity_tuple[3],
     )
 
-    # 拿到子进程全局 routing_array
+    # Get the subprocess-global routing_array.
     global _ROUTING_ARRAY
     routing_array = _ROUTING_ARRAY
     if routing_array is None:
@@ -535,7 +535,7 @@ def _compute_time_row(args):
     utps_all = 0
     stps_all = 0
     # for kv_len in sampled_kv_len:
-    #     # 计算 time/utps/stps
+    #     # Compute time/utps/stps.
     #     time = modeling_decode(
     #         model_arch=model_arch, bs=minibatch, seq=seq, cached_kv_list=sampled_kv_len,
     #         moe_parallel=parallel_scheme, non_moe_parallel=non_moe_parallel,
@@ -569,7 +569,7 @@ def _compute_time_row(args):
         sampled_kv_len_utps_stps_list.append((kv_len, time_gqa, time_mla, utps, stps))
     
 
-    # 时间随着kv len 增长是线性的
+    # Time grows linearly with kv len.
     # time_all = 
 
     # utps = minibatch / time
@@ -578,7 +578,7 @@ def _compute_time_row(args):
     utps_average = utps_all / len(sampled_kv_len)
     stps_average = stps_all / len(sampled_kv_len)
 
-    # 打包 sampled_kv_len, 
+    # Pack sampled_kv_len,
 
     
 
@@ -620,7 +620,7 @@ def _compute_time_row(args):
     return [
         arch_name, noc_name, model_name,
         BS, minibatch, seq,
-        parallel_scheme,                  # 返回字符串更稳妥
+        parallel_scheme,                  # Returning a string is more robust.
         max_activation/(1024**3),
         global_total_weight/(1024**3),
         global_kv_cache/(1024**3),
@@ -635,18 +635,17 @@ def _compute_time_row(args):
     ]
 
 def dse_1(run_dir, num_workers, enable_proc_log=False):
+    """Filter valid parallel schemes and record footprints in the parent process.
+    Build tasks from serializable keys such as combo_idx, model_key, KV length, and
+    scheme. Use num_workers processes to compute time, UTPS, and STPS. Write CSV
+    output only in the parent process to avoid concurrent file writes.
     """
-    1) 先在主进程过滤 valid parallel schemes，并把 footprint 记下来；
-    2) 然后把 (combo_idx, model_key, kv_len, scheme, ...) 这些可序列化的轻量键组装成任务；
-    3) 用多进程并行计算 time/utps/stps（num_workers）；
-    4) 主进程统一写入 CSV，避免多进程文件竞争。
-    """
-    # ---- 全局建模粒度（传入子进程用纯标量三元组）----
+    # ---- Global modeling granularity (passed to subprocesses as a triple of scalars) ----
     granularity = Modeling_Granularity(mode="coarse", comp_comm_overlap=True, auto_tune=False, dump_perf_log=True)
     gran_tuple = (granularity.mode, granularity.comp_comm_overlap, granularity.auto_tune, granularity.dump_perf_log)
     run_dir = os.path.abspath(run_dir)
 
-    # ---- 每进程日志目录，None 表示不写日志 ----
+    # ---- Per-process log directory; None disables logging ----
     proc_log_dir = os.path.join(run_dir, "proc_logs") if enable_proc_log else None
     stats_bundle_root = os.path.join(run_dir, "stats_bundles")
     os.makedirs(stats_bundle_root, exist_ok=True)
@@ -655,7 +654,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
 
 
 
-    # ---- 任务组合（可以自行增删）----
+    # ---- Task combinations (add or remove as needed) ----
     # task_combinations = [
     #     # [DeepSeekV3(), 16, 1024, 16384,1],
     #     [Qwen3_235b_a22b(), 16, 1024, 64 * 1024,1],
@@ -668,7 +667,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
     # task_combinations = scale_64_512_nodes_task_combination_decode()
     task_combinations = GET_TASK_COMBINATIONS()
 
-    # ---- 枚举 arch/noc 组合 与 并行方案集合 ----
+    # ---- Enumerate arch/noc combinations and sets of parallel schemes ----
     # combinations = arch_noc_combinations1110()
     # from mosaic.dse_space.arch_noc_combinations import arch_noc_combinations_scale_64_512_nodes
     combinations = GET_ARCH_NOC_COMBINATIONS()
@@ -691,7 +690,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
         # for parallel decoding
         PARALLEL_SEQ = task_combination[4]
         
-        # ---- routing trace 的 npz 路径：由进程池 initializer 在子进程里加载 ----
+        # ---- Routing trace npz path: loaded in subprocesses by the process-pool initializer ----
         from pathlib import Path
         project_root = Path(__file__).resolve().parent.parent  # .../mosaic
         if model_arch.__class__.__name__ == "DeepSeekV3" or model_arch.__class__.__name__ == "DeepSeekV3_A8W8":
@@ -708,7 +707,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
 
         MAX_KV_LEN = min(TASK_MAX_SEQ, model_arch.max_seq_len)
 
-        # 采样若干 KV 长度点（含起点和终点）
+        # Sample several KV lengths, including the start and end points.
         assert NUM_KV_POINT >= 2
         if NUM_KV_POINT == 2:
             sampled_kv_len = (INPUT_SEQ, MAX_KV_LEN)
@@ -716,7 +715,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
             step = (MAX_KV_LEN - INPUT_SEQ) / (NUM_KV_POINT - 1)
             sampled_kv_len = tuple(int(round(INPUT_SEQ + i * step)) for i in range(NUM_KV_POINT))
 
-        # ---- CSV 路径与表头 ----
+        # ---- CSV path and header ----
         # out_dir = os.path.dirname(os.path.abspath(__file__))
         # csv_path = os.path.join(out_dir, f"dse_{model_arch.__class__.__name__}_BS{BS}_INPUT_SEQ{INPUT_SEQ}_TASK_MAX_SEQ{TASK_MAX_SEQ}.csv")
         # invalid_csv_path = csv_path.replace(".csv", "_invalid_config.csv")
@@ -754,7 +753,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
                                  "tp", "ep", "ep1", "ep2", "sp", "cp", "dp", "fsdp", "pp",
                                  "max_activation/GiB", "mem_weight/GiB", "kv_cache/GiB"])
 
-        # ---- 遍历所有 (arch, noc) 组合 ----
+        # ---- Iterate over all (arch, noc) combinations ----
         for combo_idx, combination in enumerate[Any](combinations):
             combo_start_ts = time.time()
             arch = combination[0]
@@ -782,7 +781,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
             # key: (scheme, tp_transform_moe); value: (minibatch, max_activation, global_total_weight, global_kv_cache, non_moe_parallel)
             scheme_footprints: dict[tuple, tuple] = {}
 
-            # ---- 先筛有效方案（主进程内进行，不涉及多进程）----
+            # ---- First filter valid schemes (in the main process, without multiprocessing) ----
             filter_start_ts = time.time()
             for scheme in filtered_parallel_schemes:
                 minibatch = math.ceil(BS / scheme.pp)
@@ -844,22 +843,22 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
                 )
                 continue
 
-            # ---- 组装并行任务（只传键/标量/小对象）----
+            # ---- Assemble parallel tasks (pass only keys/scalars/small objects) ----
             tasks = []
             model_key = model_arch.__class__.__name__
             for scheme, tp_transform_moe in valid_parallel_schemes:
                 minibatch, max_activation, global_total_weight, global_kv_cache, non_moe_parallel = scheme_footprints[(scheme, tp_transform_moe)]
                 tasks.append((
-                    combo_idx,              # arch/noc 的索引，子进程里重建
-                    model_key,              # 模型名，子进程里重建
+                    combo_idx,              # arch/noc index; rebuild in the subprocess.
+                    model_key,              # Model name; rebuild in the subprocess.
                     BS, minibatch, sampled_kv_len, PARALLEL_SEQ,
-                    scheme,                 # 顶层 dataclass，可 pickle
+                    scheme,                 # Top-level dataclass, picklable.
                     max_activation, global_total_weight, global_kv_cache,
-                    gran_tuple,             # 纯标量三元组
-                    non_moe_parallel,       # 顶层 dataclass，可 pickle
-                    proc_log_dir,           # str or None，None 表示不写日志
-                    run_dir,                # run 根目录
-                    stats_bundle_root,      # stats bundle 根目录
+                    gran_tuple,             # Triple of scalar values.
+                    non_moe_parallel,       # Top-level dataclass, picklable.
+                    proc_log_dir,           # str or None; None disables logging.
+                    run_dir,                # Run root directory.
+                    stats_bundle_root,      # Stats bundle root directory.
                     tp_transform_moe,       # str: "none" | "replace_only"
                 ))
 
@@ -870,7 +869,7 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
             with ProcessPoolExecutor(
                 max_workers=num_workers,
                 mp_context=mp.get_context("spawn"),
-                initializer=_init_worker,          # 在子进程内加载 routing_array
+                initializer=_init_worker,          # Load routing_array in the subprocess.
                 initargs=(npz_trace_file,),
             ) as executor:
                 futures = [executor.submit(_compute_time_row, t) for t in tasks]
@@ -883,13 +882,13 @@ def dse_1(run_dir, num_workers, enable_proc_log=False):
                         log.exception("Parallel task failed: %s", e)
             pool_elapsed_sec = time.time() - pool_start_ts
 
-            # ---- 主进程统一写 CSV ----
+            # ---- Write all CSV output in the main process ----
             if rows:
-                # 排序：arch, noc, scheme_str, tp_transform_moe
+                # Sort by arch, noc, scheme_str, tp_transform_moe.
                 rows.sort(key=lambda r: (r[0], r[1], str(r[6]), r[18]))
                 with open(csv_path, mode="a", newline="") as f:
                     writer = csv.writer(f)
-                    # 将 (kv_len, time_gqa, time_mla, utps, stps) 列表展平到列，匹配表头
+                    # Flatten the list of (kv_len, time_gqa, time_mla, utps, stps) into columns matching the header.
                     flat_rows = []
                     for r in rows:
                         scheme = r[6]
@@ -933,12 +932,12 @@ if __name__ == "__main__":
     from datetime import datetime
     import multiprocessing as mp
 
-    # === 每次运行创建独立目录 ===
+    # === Create a separate directory for each run ===
     run_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = os.path.join("runs", run_tag)
     os.makedirs(run_dir, exist_ok=True)
 
-    # # === 日志输出到屏幕 + 文件 ===
+    # # === Log to both screen and file ===
     # log_file = os.path.join(run_dir, "dse.log")
     # logging.basicConfig(
     #     level=logging.INFO,
@@ -949,7 +948,7 @@ if __name__ == "__main__":
     #         logging.FileHandler(log_file, encoding="utf-8")
     #     ]
     # )
-    # === 日志输出到屏幕 + 文件 ===
+    # === Log to both screen and file ===
     # log_file = os.path.join(run_dir, "dse.log")
     # logging.basicConfig(
     #     level=logging.WARNING,
@@ -979,11 +978,11 @@ if __name__ == "__main__":
     num_workers = os.cpu_count() // 2
     log.info("Using %d workers (cpu_count=%s)", num_workers, os.cpu_count())
 
-    # 把 run_dir 传给 dse_1()
-    # 测量时间
+    # Pass run_dir to dse_1().
+    # Measure elapsed time.
     import time
     start_time = time.time()
-    # 先关闭 proc_logs，仅保留 stats_bundles 下的新 dump（json/txt/md + manifest）
+    # Disable proc_logs for now, retaining only the new dumps under stats_bundles (json/txt/md + manifest).
     dse_1(run_dir, num_workers, enable_proc_log=False)
     print("dse_1 finished")
     end_time = time.time()

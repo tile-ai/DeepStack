@@ -6,7 +6,7 @@ def get_hete_metrics(post_data):
     "DDR util": post_data[1]*100,
     "L2 Read Hit Rate": post_data[2]*100,
     "L2 Util": post_data[3]*100,
-    "Smem Footprint per Thread Block/Bytes": post_data[4],  # 假定这是对应的
+    "Smem Footprint per Thread Block/Bytes": post_data[4],  # Assume this is the corresponding value
     "Smem/L1 Util": post_data[5]*100,
     "Reg Footprint per Thread": post_data[6],
 

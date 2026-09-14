@@ -62,31 +62,31 @@ def build():
 
 
 def full_model_decode_time(model, bs, kv_len, moe_parallel, non_moe_parallel, arch, noc, g, routing):
-    """整模单 token decode 时间 (秒)，组装方式对齐 modeling_decode。"""
+    """Model whole-model single-token decode time in seconds, matching modeling_decode."""
     hidden = model.hidden_size
     num_layer = model.num_layer
     seq = 1
 
-    # MoE 用纯 EP: tp 折进 ep (与 modeling_decode 的 debug_tp_ep_parallel_scheme 一致)
+    # MoE uses pure EP: fold tp into ep (consistent with debug_tp_ep_parallel_scheme in modeling_decode)
     moe_compute = dataclasses.replace(
         moe_parallel, tp=1,
         ep=moe_parallel.ep * moe_parallel.tp,
         ep1=moe_parallel.ep * moe_parallel.tp, ep2=1)
 
-    # 1. attention (DSA), 全部 61 层
+    # 1. attention (DSA), all 61 layers
     t_attn_list, _ = dsa_mla_decode_kv_list_top(
         bs=bs, seq=seq, cached_kv_list=[kv_len], model_arch=model,
         parallel=non_moe_parallel, atten_parallel=non_moe_parallel, next_parallel=non_moe_parallel,
         granularity=g, single_chip=arch, noc_hierarchy=noc)
     t_attn = t_attn_list[0] * num_layer
 
-    # 2. dense FFN, 3 层
+    # 2. dense FFN, 3 layers
     t_dense, _ = swiglu_top(bs=bs, seq=seq, hidden=hidden, up_hidden=model.dense_ffn_arch.up_hidden,
         parallel=non_moe_parallel, next_parallel=non_moe_parallel, swiglu_bytes=model.dense_ffn_arch.swiglu_bytes,
         granularity=g, single_chip=arch, noc_hierarchy=noc)
     t_dense = t_dense * model.num_dense_layer
 
-    # 3. MoE, 58 层
+    # 3. MoE, 58 layers
     t_moe, _ = moe_top(bs=bs, seq=seq, hidden=hidden, moe_down_hidden=model.moe_arch.moe_down_hidden,
         parallel=moe_compute, next_parallel=moe_compute,
         expert_bytes=model.moe_arch.expert_bytes, gate_bytes=model.moe_arch.gate_bytes,
@@ -95,7 +95,7 @@ def full_model_decode_time(model, bs, kv_len, moe_parallel, non_moe_parallel, ar
         granularity=g, single_chip=arch, noc_hierarchy=noc)
     t_moe = t_moe * model.num_moe_layer
 
-    # 4. rms_norm + add_residual, 每层 2 个
+    # 4. rms_norm + add_residual, 2 of each per layer
     t_rms, _ = rms_norm_top(bs=bs, seq=seq, hidden=hidden, parallel=non_moe_parallel, next_parallel=non_moe_parallel,
         rms_norm_bytes=model.rms_norm_bytes, granularity=g, single_chip=arch, noc_hierarchy=noc)
     t_rms = t_rms * num_layer * 2
@@ -108,13 +108,15 @@ def full_model_decode_time(model, bs, kv_len, moe_parallel, non_moe_parallel, ar
 
 
 def footprint_per_gpu(model, minibatch, max_kv, moe_parallel, non_moe_parallel):
-    """每 GPU 总占用 (bytes): weights + kv cache + max activation. 对齐 get_max_footprint_decode。
-    传入完整 minibatch (= bs, pp=1); footprint 函数内部按 parallel.dp / ep 自行分片。"""
+    """Return per-GPU bytes for weights + KV cache + peak activations, matching
+    get_max_footprint_decode. Supply the full minibatch (bs, pp=1); footprint
+    helpers apply parallel.dp / ep sharding internally.
+    """
     hidden = model.hidden_size
     pp = non_moe_parallel.pp
     shard_layer = math.ceil(model.num_layer / pp)
 
-    # attention (DSA) footprint, per layer; 内部按 non_moe_parallel.dp 切 bs
+    # attention (DSA) footprint, per layer; internally shards bs across non_moe_parallel.dp
     a_act, a_w, a_kv = get_dsa_mla_absorb_and_no_absorb_footprint(
         minibatch, 1, max_kv, model, non_moe_parallel, non_moe_parallel)
     a_w *= shard_layer
@@ -124,7 +126,7 @@ def footprint_per_gpu(model, minibatch, max_kv, moe_parallel, non_moe_parallel):
     d_act, d_w = get_swiglu_footprint(minibatch, 1, hidden, model.dense_ffn_arch.up_hidden, non_moe_parallel, model.dense_ffn_arch.swiglu_bytes)
     d_w *= math.ceil(model.num_dense_layer / pp)
 
-    # moe (EP): get_moe_footprint 内部按 moe_parallel 分 expert
+    # moe (EP): get_moe_footprint internally shards experts according to moe_parallel
     m_act, m_w = get_moe_footprint(minibatch, 1, hidden, model.moe_arch.moe_down_hidden, moe_parallel,
         model.moe_arch.expert_bytes, model.moe_arch.gate_bytes, model.moe_arch.num_shared_experts, model.moe_arch.num_routed_experts)
     m_w *= math.ceil(model.num_moe_layer / pp)
@@ -146,7 +148,7 @@ def main():
     cap = arch.ddr_capacity  # per-GPU bytes
     GiB = 1024**3
 
-    # 单节点 TP-attention + EP (paper 同款: attention tp=8, MoE 用 ep=8)
+    # Single-node TP-attention + EP (as in the paper: attention tp=8, MoE ep=8)
     moe_parallel = ParallelScheme(tp=8, ep=1, sp=1, cp=1, dp=1, pp=1, fsdp=False)
     non_moe_parallel = dataclasses.replace(moe_parallel, ep=1, ep1=1, ep2=1, dp=moe_parallel.dp * moe_parallel.ep)
     DP = non_moe_parallel.dp

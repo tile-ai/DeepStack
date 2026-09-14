@@ -1,8 +1,6 @@
-"""
-quick_test.py — 最小化测试: 1 个 DRAM config × 1 个 prefill task + 1 个 decode task
-验证代码逻辑和 CSV 输出是否正确.
-
-用法:  python -m mosaic.dse_space.case_study_dram_layer.quick_test
+"""Minimal smoke test: one DRAM configuration, one prefill task, and one decode
+task to check model execution and CSV output.
+Run: python -m mosaic.dse_space.case_study_dram_layer.quick_test
 """
 
 import logging
@@ -11,14 +9,14 @@ import sys
 import time
 import multiprocessing as mp
 
-# ── monkey-patch: 缩小搜索空间 ──────────────────────────────────────────
+# ── Monkey-patch: reduce the search space ──────────────────────────────────────────
 import mosaic.dse_space.case_study_dram_layer.dram_layer_config as _cfg
 
 _ORIG_GENERATE = _cfg.generate_dram_layer_configs
 
 
 def _tiny_configs():
-    """只返回 baseline m=4,n=4,smem=256K,l1=256."""
+    """Return only the baseline m=4, n=4, smem=256K, l1=256 configuration."""
     return [(4, 4, 256 * 1024, 256)]
 
 
@@ -86,7 +84,7 @@ if __name__ == "__main__":
     _dc.dse_1(run_dir, num_workers, enable_proc_log=False)
     print(f"Decode done in {time.time() - t0:.1f}s")
 
-    # ── 打印 CSV 结果 ──
+    # ── Print CSV results ──
     print("\n" + "=" * 60)
     print(f"Results in: {run_dir}")
     print("=" * 60)

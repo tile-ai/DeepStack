@@ -104,7 +104,7 @@ def mla_fa_decode_wrapper(bs:int, seq:int, cached_kv:int, hidden:int, num_head:i
     mode=granularity.get_mode()
     tune_flag=granularity.get_auto_tune()
 
-    # 在 GQA 里, g = K/V head 数，而 group size = Q head 数 ÷ K/V head 数。
+    # In GQA, g = number of K/V heads, while group size = number of Q heads / number of K/V heads.
     group_size = math.ceil (num_head/num_kv_head)
     wq_hidden = wq_hidden = num_head * head_dim
 

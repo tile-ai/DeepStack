@@ -1,13 +1,13 @@
-# Qwen3-Omni 类多组件模型的组件级建模与端到端编排 (Phase 1: 同集群串行)。
+# Component-level modeling and end-to-end orchestration for Qwen3-Omni-like multicomponent models (Phase 1: serial execution on the same cluster).
 #
-# 依赖链: vision/audio encoder -> thinker (prefill + AR decode)
-#          -> resize MLP -> talker (prefill + 每 codec 帧 1 步 decode)
-#          -> code predictor (每帧 num_code_groups-1 步微型 decode)
-#          -> code2wav (按 chunk 流式 vocoder)
+# Dependency chain: vision/audio encoder -> thinker (prefill + AR decode)
+#          -> resize MLP -> talker (prefill + 1 decode step per codec frame)
+#          -> code predictor (num_code_groups-1 tiny decode steps per frame)
+#          -> code2wav (chunk-streaming vocoder)
 #
-# Phase 1 假设所有组件共享同一组设备, 按依赖链串行占用; 输出指标:
-#   TTFT (首 text token), text TPOT, first-audio-packet latency, 音频 RTF。
-# Phase 2 (分离式部署 + 组件间 NoC 传输 + 流水稳态) 见 modeling_omni_disagg (待做)。
+# Phase 1 assumes all components share the same devices and use them serially along the dependency chain; output metrics:
+#   TTFT (first text token), text TPOT, first-audio-packet latency, and audio RTF.
+# See modeling_omni_disagg (TODO) for Phase 2 (disaggregated deployment + intercomponent NoC transfers + steady-state pipeline).
 import dataclasses
 import math
 from dataclasses import dataclass, field
@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# workload / 并行方案定义
+# Workload / parallel scheme definitions.
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -54,22 +54,23 @@ class OmniWorkload:
     image_height: int = 1080
     image_width: int = 1920
     video_seconds: float = 0.0
-    video_fps: float = 2.0                # 抽帧率 (Qwen3-Omni 默认 ~2fps)
+    video_fps: float = 2.0                # Frame sampling rate (Qwen3-Omni default ~2fps).
     video_height: int = 720
     video_width: int = 1280
     audio_in_seconds: float = 0.0
     text_out_tokens: int = 256
     audio_out_seconds: float = 0.0
-    # talker 启动前等待 thinker 先出多少个 text token (流式启动阈值)
+    # Number of thinker text tokens to wait for before starting talker (streaming startup threshold).
     talker_wait_text_tokens: int = 4
-    # code2wav 首个可播 chunk 的帧数 (12.5Hz; 25 帧 = 2s, 对应 config seconds_per_chunk)
+    # Frames in code2wav's first playable chunk (12.5Hz; 25 frames = 2s, matching config seconds_per_chunk).
     first_chunk_frames: int = 25
 
 
 @dataclass
 class OmniParallelPlan:
-    """每个组件一组并行方案 (Phase 1: 同一组设备上串行, world_size 应一致)。
-    decode 类方案 seq==1, 要求 sp=1。"""
+    """One parallel scheme per component, executed serially on the same device group
+    in phase 1. All world sizes must match. Decode schemes use seq=1 and require sp=1.
+    """
     vision: ParallelScheme
     audio: ParallelScheme
     thinker_prefill: ParallelScheme
@@ -84,24 +85,25 @@ class OmniParallelPlan:
 
 
 def make_uniform_routing(num_tokens: int, num_experts: int, topk: int, seed: int = 0) -> np.ndarray:
-    """合成均匀路由 (fallback): 每 token 无重复地选 topk 个专家。"""
+    """Generate fallback uniform routing by selecting topk distinct experts per token."""
     rng = np.random.default_rng(seed)
     scores = rng.random((max(1, num_tokens), num_experts))
     return np.argpartition(scores, -topk, axis=-1)[:, -topk:].astype(np.int64)
 
 
-# 模拟路由生成一次后按 (n_experts, n_group, topk_group, topk) 缓存到文件, 进程内再缓存 ndarray
+# Generate simulated routing once, cache it to a file keyed by (n_experts, n_group, topk_group, topk), then cache the ndarray within each process.
 _SIM_ROUTING_CACHE: dict = {}
-_SIM_ROUTING_BASE_TOKENS = 2048  # 生成的基础 token 数; 更长的请求平铺复用
-                                 # (ep_all_to_all 对 >=1024 token 走平均+不均衡因子, 平铺不损失信息)
+_SIM_ROUTING_BASE_TOKENS = 2048  # Number of base tokens to generate; tile and reuse for longer requests.
+                                 # (ep_all_to_all uses averaging plus an imbalance factor for >=1024 tokens, so tiling loses no information.)
 
 
 def get_simulated_routing(num_tokens: int, num_experts: int, topk: int,
                           n_group: int = 1, topk_group: int = 1,
                           cache_dir: "str | None" = None) -> np.ndarray:
-    """无真实 trace 时, 用 mosaic.utils.moe_router_sim 的路由模拟器合成路由
-    (随机 linear router 打分 + top-k, 比均匀采样更接近真实的专家负载不均衡)。
-    Qwen 系列无分组受限路由, 用 n_group=1, topk_group=1 即普通 top-k。"""
+    """Generate routing with mosaic.utils.moe_router_sim when no real trace is available.
+    Random linear-router scores followed by top-k model load imbalance more closely
+    than uniform selection. Qwen uses n_group=1 and topk_group=1 for unrestricted top-k.
+    """
     from mosaic.utils.moe_router_sim import (
         extract_selected_experts_lists,
         generate_filename,
@@ -142,10 +144,10 @@ def get_simulated_routing(num_tokens: int, num_experts: int, topk: int,
 
 
 def get_routing_from_npz(npz_path: str, phase: str = "prefill", topk: "int | None" = None) -> np.ndarray:
-    """读取 routing trace：prefill [layer, iter, topk] 或
-    decode [iter, layer, batch, topk]，并展平成 [tokens, topk]
-    直接可作 modeling_llm_prefill/decode_step 的 routing_array。
-    topk 缺省时自动探测末维 (thinker=8, talker=6)。"""
+    """Load prefill [layer, iter, topk] or decode [iter, layer, batch, topk] routing and
+    flatten it to [tokens, topk] for modeling_llm_prefill/decode_step.
+    Infer topk from the final dimension when omitted (thinker=8, talker=6).
+    """
     from mosaic.utils.moe_router_sim import load_npz_routing_flatten_last_dim
     if topk is None:
         with np.load(npz_path, allow_pickle=True) as zf:
@@ -159,12 +161,14 @@ def get_routing_from_npz(npz_path: str, phase: str = "prefill", topk: "int | Non
 
 
 # ---------------------------------------------------------------------------
-# encoder 组件
+# Encoder components.
 # ---------------------------------------------------------------------------
 
 def modeling_vision_encoder(arch: ViT_Encoder_Arch, bs: int, num_patches: int, parallel: ParallelScheme,
                             granularity: Modeling_Granularity, single_chip: Arch, noc_hierarchy: Hierarchy):
-    """双向 ViT encoder 一次 forward (prefill-only)。返回 (total_time, breakdown)。"""
+    """Model one bidirectional ViT encoder forward pass (prefill only).
+    Return (total_time, breakdown).
+    """
     if num_patches == 0:
         return 0.0, {}
 
@@ -176,7 +180,7 @@ def modeling_vision_encoder(arch: ViT_Encoder_Arch, bs: int, num_patches: int, p
         parallel=parallel, conv_bytes=arch.conv_bytes, granularity=granularity,
         single_chip=single_chip, noc_hierarchy=noc_hierarchy)
 
-    # 双向 MHA: num_kv_head == num_head, fa_prefill 本身按全量 S_q x S_kv 建模 (无 causal 折扣)
+    # Bidirectional MHA: num_kv_head == num_head; fa_prefill models the full S_q x S_kv area (no causal reduction).
     t_atten, _ = gqa_prefill_top(
         bs=bs, seq=num_patches, hidden=arch.hidden_size, num_head=arch.num_head,
         num_kv_head=arch.num_head, head_dim=arch.head_dim,
@@ -188,13 +192,13 @@ def modeling_vision_encoder(arch: ViT_Encoder_Arch, bs: int, num_patches: int, p
         parallel=parallel, next_parallel=parallel, mlp_bytes=arch.mlp_bytes,
         granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
 
-    # LayerNorm 以 rms_norm 建模 (同为访存受限归一化), residual 同现有框架
+    # Model LayerNorm with rms_norm (both are memory-bound normalizations); handle residuals as in the existing framework.
     t_norm, _ = rms_norm_top(bs=bs, seq=num_patches, hidden=arch.hidden_size, parallel=parallel, next_parallel=parallel,
                              rms_norm_bytes=arch.mlp_bytes, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
     t_res, _ = add_residual_top(bs=bs, seq=num_patches, hidden=arch.hidden_size, parallel=parallel, next_parallel=parallel,
                                 add_residual_bytes=arch.mlp_bytes, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
 
-    # patch merger (主 merger + deepstack mergers): 非门控 MLP [merge_hidden -> merge_hidden -> out_hidden]
+    # Patch merger (main merger + deepstack mergers): non-gated MLP [merge_hidden -> merge_hidden -> out_hidden].
     t_merger, _ = mlp_gelu_top(
         bs=bs, seq=merged_tokens, hidden=arch.merger_hidden, up_hidden=arch.merger_hidden,
         parallel=parallel, next_parallel=parallel, mlp_bytes=arch.mlp_bytes,
@@ -217,14 +221,16 @@ def modeling_vision_encoder(arch: ViT_Encoder_Arch, bs: int, num_patches: int, p
 
 def modeling_audio_encoder(arch: Audio_Encoder_Arch, bs: int, audio_seconds: float, parallel: ParallelScheme,
                            granularity: Modeling_Granularity, single_chip: Arch, noc_hierarchy: Hierarchy):
-    """AuT audio encoder 一次 forward (prefill-only)。返回 (total_time, breakdown)。"""
+    """Model one AuT audio encoder forward pass (prefill only).
+    Return (total_time, breakdown).
+    """
     if audio_seconds <= 0:
         return 0.0, {}
 
     mel_frames = arch.num_mel_frames(audio_seconds)
     tokens = arch.num_tokens(audio_seconds)
 
-    # conv 前端: 3x Conv2d(k=3, s=2), (H=mel_bins, W=mel_frames), cin 1 -> ds -> ds -> ds
+    # Conv frontend: 3x Conv2d(k=3, s=2), (H=mel_bins, W=mel_frames), cin 1 -> ds -> ds -> ds.
     h, w = arch.num_mel_bins, mel_frames
     conv_specs = [(1, arch.downsample_hidden), (arch.downsample_hidden, arch.downsample_hidden), (arch.downsample_hidden, arch.downsample_hidden)]
     t_conv_front = 0.0
@@ -235,13 +241,13 @@ def modeling_audio_encoder(arch: Audio_Encoder_Arch, bs: int, audio_seconds: flo
         t_conv_front += t_c
         h, w = math.ceil(h / 2), math.ceil(w / 2)
 
-    # conv_out: Linear(ds * mel/8, d_model), 以 k=1 conv1d (纯 GEMM) 建模
+    # conv_out: Linear(ds * mel/8, d_model), modeled as k=1 conv1d (pure GEMM).
     t_conv_out, _ = conv1d_top(bs=bs, length=tokens, cin=arch.downsample_hidden * arch.downsampled_mel_bins,
                                cout=arch.d_model, kernel=1, stride=1,
                                parallel=parallel, conv_bytes=arch.conv_bytes, granularity=granularity,
                                single_chip=single_chip, noc_hierarchy=noc_hierarchy)
 
-    # 窗口注意力: 块大小 = n_window_infer(mel 帧) 对应的 token 数; 块间不注意
+    # Window attention: block size = token count corresponding to n_window_infer mel frames; no attention between blocks.
     chunk_mel = 2 * arch.n_window
     chunk_tokens = arch.num_tokens(chunk_mel / arch.mel_frame_rate)
     window_tokens = chunk_tokens * max(1, arch.n_window_infer // chunk_mel)
@@ -264,7 +270,7 @@ def modeling_audio_encoder(arch: Audio_Encoder_Arch, bs: int, audio_seconds: flo
     t_res, _ = add_residual_top(bs=bs, seq=tokens, hidden=arch.d_model, parallel=parallel, next_parallel=parallel,
                                 add_residual_bytes=arch.mlp_bytes, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
 
-    # 出口: proj1(d_model->d_model) + gelu + proj2(d_model->output_dim)
+    # Output: proj1(d_model->d_model) + gelu + proj2(d_model->output_dim).
     t_out_proj, _ = mlp_gelu_top(
         bs=bs, seq=tokens, hidden=arch.d_model, up_hidden=arch.d_model,
         parallel=parallel, next_parallel=parallel, mlp_bytes=arch.mlp_bytes,
@@ -286,11 +292,11 @@ def modeling_audio_encoder(arch: Audio_Encoder_Arch, bs: int, audio_seconds: flo
 
 
 # ---------------------------------------------------------------------------
-# causal LM 组件 (thinker / talker / code predictor 通用)
+# Causal LM component (shared by thinker / talker / code predictor).
 # ---------------------------------------------------------------------------
 
 def _fill_ep_split(p: ParallelScheme) -> ParallelScheme:
-    # moe_coarse 需要 ep1/ep2 (分层 EP); ep==1 时 allocate_ep 不会被触发, 这里兜底
+    # moe_coarse requires ep1/ep2 (hierarchical EP); allocate_ep is not triggered when ep==1, so provide a fallback here.
     if p.ep == 1 and (getattr(p, "ep1", None) is None or getattr(p, "ep2", None) is None):
         return dataclasses.replace(p, ep1=1, ep2=1)
     return p
@@ -300,7 +306,9 @@ def modeling_llm_prefill(model_arch: LLM_Arch, bs: int, seq: int,
                          parallel: ParallelScheme, atten_parallel: ParallelScheme, moe_parallel: ParallelScheme,
                          granularity: Modeling_Granularity, single_chip: Arch, noc_hierarchy: Hierarchy,
                          routing_array: "np.ndarray | None" = None):
-    """通用 causal LM prefill (与 dse v3/v4 的 modeling_prefill 同构)。返回 (total_time, breakdown)。"""
+    """Model causal-LM prefill using the same structure as the v3/v4 DSE prefill path.
+    Return (total_time, breakdown).
+    """
     hidden = model_arch.hidden_size
     shard_layer = math.ceil(model_arch.num_layer / parallel.pp)
 
@@ -374,7 +382,9 @@ def modeling_llm_decode_step(model_arch: LLM_Arch, bs: int, cached_kv: int,
                              parallel: ParallelScheme, moe_parallel: ParallelScheme,
                              granularity: Modeling_Granularity, single_chip: Arch, noc_hierarchy: Hierarchy,
                              routing_array: "np.ndarray | None" = None):
-    """通用 causal LM 单步 decode (seq=1), 与 dse v4 的 modeling_decode 同构。返回 (step_time, breakdown)。"""
+    """Model one causal-LM decode step with seq=1, matching the v4 DSE decode path.
+    Return (step_time, breakdown).
+    """
     assert parallel.sp == 1, "decode 单 token, sp 必须为 1"
     hidden = model_arch.hidden_size
     shard_layer = math.ceil(model_arch.num_layer / parallel.pp)
@@ -446,17 +456,19 @@ def modeling_llm_decode_step(model_arch: LLM_Arch, bs: int, cached_kv: int,
 
 
 # ---------------------------------------------------------------------------
-# code2wav 组件
+# code2wav component.
 # ---------------------------------------------------------------------------
 
 def modeling_code2wav_chunk(arch: Code2Wav_Arch, bs: int, frames: int, parallel: ParallelScheme,
                             granularity: Modeling_Granularity, single_chip: Arch, noc_hierarchy: Hierarchy,
                             with_left_context: bool = True):
-    """code2wav 处理一个 chunk (frames 个 codec 帧, 含左上下文) 的时间。返回 (total_time, breakdown)。"""
+    """Model code2wav processing of one chunk of codec frames, including left context.
+    Return (total_time, breakdown).
+    """
     L = frames + (arch.left_context if with_left_context else 0)
 
-    # pre_transformer: sliding window 注意力, 每 query 最多看 window 个 kv;
-    # 以块近似: bs_eff = ceil(L/w) 块, 每块 seq=w (总 attention 面积 ~ L*w)
+    # pre_transformer: sliding-window attention; each query attends to at most window kv entries.
+    # Block approximation: bs_eff = ceil(L/w) blocks, each with seq=w (total attention area ~ L*w).
     w = min(arch.sliding_window, L)
     num_blocks = max(1, math.ceil(L / arch.sliding_window))
     t_atten, _ = gqa_prefill_top(
@@ -476,7 +488,7 @@ def modeling_code2wav_chunk(arch: Code2Wav_Arch, bs: int, frames: int, parallel:
 
     t_transformer = (t_atten + t_mlp + 2 * t_norm + 2 * t_res) * arch.num_layers
 
-    # upsample 段: 对每个 ratio r: TransConv(h, h, r, r) + ConvNeXt(dwconv k7 + pw h->4h->h)
+    # Upsampling section: for each ratio r, TransConv(h, h, r, r) + ConvNeXt(dwconv k7 + pw h->4h->h).
     t_upsample = 0.0
     cur_len = L
     h = arch.hidden_size
@@ -495,7 +507,7 @@ def modeling_code2wav_chunk(arch: Code2Wav_Arch, bs: int, frames: int, parallel:
                                rms_norm_bytes=arch.mlp_bytes, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
         t_upsample += t_tc + t_dw + t_pw + t_ln
 
-    # decoder 段: Conv1d(h, decoder_dim, 7) + 逐级 DecoderBlock + 尾部 Conv1d(out, 1, 7)
+    # Decoder section: Conv1d(h, decoder_dim, 7) + successive DecoderBlocks + final Conv1d(out, 1, 7).
     t_decoder = 0.0
     t_c, _ = conv1d_top(bs=bs, length=cur_len, cin=h, cout=arch.decoder_dim, kernel=7, stride=1,
                         parallel=parallel, conv_bytes=arch.conv_bytes, granularity=granularity,
@@ -541,17 +553,17 @@ def modeling_code2wav_chunk(arch: Code2Wav_Arch, bs: int, frames: int, parallel:
 
 
 # ---------------------------------------------------------------------------
-# 端到端编排 (Phase 1: 同集群串行)
+# End-to-end orchestration (Phase 1: serial execution on the same cluster).
 # ---------------------------------------------------------------------------
 
 def modeling_omni_e2e(omni: Omni_Arch, workload: OmniWorkload, plan: OmniParallelPlan,
                       granularity: Modeling_Granularity, single_chip: Arch, noc_hierarchy: Hierarchy,
                       thinker_routing: "np.ndarray | None" = None, talker_routing: "np.ndarray | None" = None):
-    """端到端串行编排。返回 metrics dict (含各组件 breakdown)。"""
+    """Execute the end-to-end serial component model and return metrics with component breakdowns."""
     bs = workload.bs
     wl = workload
 
-    # ---- 输入 token 换算 ----
+    # ---- Convert inputs to token counts ----
     vision_patches = 0
     vision_tokens = 0
     if omni.vision_encoder is not None:
@@ -576,7 +588,7 @@ def modeling_omni_e2e(omni: Omni_Arch, workload: OmniWorkload, plan: OmniParalle
         omni.thinker, bs, seq_in, plan.thinker_prefill, plan.thinker_prefill_atten, plan.thinker_moe,
         granularity, single_chip, noc_hierarchy, routing_array=thinker_routing)
 
-    # text TPOT: 取 decode 中点 kv 为代表
+    # Text TPOT: use the midpoint kv length during decode as representative.
     kv_mid = seq_in + wl.text_out_tokens // 2
     t_tpot, thinker_decode_bd = modeling_llm_decode_step(
         omni.thinker, bs, kv_mid, plan.thinker_decode, plan.thinker_moe,
@@ -593,11 +605,11 @@ def modeling_omni_e2e(omni: Omni_Arch, workload: OmniWorkload, plan: OmniParalle
         "breakdown": {"vision": vision_bd, "audio": audio_bd, "thinker_prefill": thinker_prefill_bd, "thinker_decode_step": thinker_decode_bd},
     }
 
-    # ---- 音频输出路径 (talker + code predictor + code2wav) ----
+    # ---- Audio output path (talker + code predictor + code2wav) ----
     if omni.talker is not None and wl.audio_out_seconds > 0:
         num_frames = omni.num_codec_frames(wl.audio_out_seconds)
 
-        # resize MLP: thinker hidden -> talker hidden, 对 talker 消费的 prefix tokens 施加一次
+        # Resize MLP: thinker hidden -> talker hidden, applied once to the prefix tokens consumed by talker.
         talker_prefix = seq_in + wl.talker_wait_text_tokens
         t_resize, _ = mlp_gelu_top(bs=bs, seq=talker_prefix, hidden=omni.thinker.hidden_size,
                                    up_hidden=omni.resize_mlp_hidden, parallel=plan.talker_prefill,
@@ -609,33 +621,33 @@ def modeling_omni_e2e(omni: Omni_Arch, workload: OmniWorkload, plan: OmniParalle
             omni.talker, bs, talker_prefix, plan.talker_prefill, plan.talker_prefill, plan.talker_moe,
             granularity, single_chip, noc_hierarchy, routing_array=talker_routing)
 
-        # talker 每帧 1 步 decode (kv 取中点)
+        # Talker: 1 decode step per frame (use the midpoint kv length).
         talker_kv_mid = talker_prefix + num_frames // 2
         t_talker_step, talker_decode_bd = modeling_llm_decode_step(
             omni.talker, bs, talker_kv_mid, plan.talker_decode, plan.talker_moe,
             granularity, single_chip, noc_hierarchy, routing_array=talker_routing)
 
-        # code predictor: 每帧 num_code_groups-1 步微型 decode (kv 很小)
+        # Code predictor: num_code_groups-1 tiny decode steps per frame (very small kv).
         cp_steps = omni.code_predictor_steps_per_frame()
         t_cp_step, cp_bd = modeling_llm_decode_step(
             omni.code_predictor, bs, cached_kv=max(2, cp_steps), parallel=plan.code_predictor, moe_parallel=plan.code_predictor,
             granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
         t_frame = t_talker_step + cp_steps * t_cp_step
 
-        # code2wav: 首 chunk + 稳态 chunk
+        # code2wav: first chunk + steady-state chunks.
         t_c2w_first, c2w_bd = modeling_code2wav_chunk(omni.code2wav, bs, wl.first_chunk_frames, plan.code2wav,
                                                       granularity, single_chip, noc_hierarchy, with_left_context=False)
         t_c2w_steady, _ = modeling_code2wav_chunk(omni.code2wav, bs, wl.first_chunk_frames, plan.code2wav,
                                                   granularity, single_chip, noc_hierarchy, with_left_context=True)
         t_c2w_per_frame = t_c2w_steady / wl.first_chunk_frames
 
-        # 首音频包: TTFT + 等 thinker 出前几个 text token + talker prefill + 首 chunk 帧生成 + 首 chunk vocoder
+        # First audio packet: TTFT + wait for thinker's first few text tokens + talker prefill + first-chunk frame generation + first-chunk vocoder.
         first_audio_latency = (ttft + wl.talker_wait_text_tokens * t_tpot + t_resize + t_talker_prefill
                                + wl.first_chunk_frames * t_frame + t_c2w_first)
 
-        # 音频 RTF: 生成 1s 音频所需时间 / 1s (纯音频路径; 同集群串行下 thinker decode 也占用硬件, 单独给出)
+        # Audio RTF: time required to generate 1s of audio / 1s (audio path only; thinker decode also uses hardware during serial execution on the same cluster, reported separately).
         audio_rtf = omni.codec_frame_rate * (t_frame + t_c2w_per_frame)
-        # 串行合成 RTF: 假设 text 与音频同速流式 (每秒音频伴随 tokens_per_sec_text 个 text token 串行执行)
+        # Combined serial RTF: assume text and audio stream at the same rate (tokens_per_sec_text text tokens execute serially per second of audio).
         text_tokens_per_audio_sec = wl.text_out_tokens / max(wl.audio_out_seconds, 1e-9)
         audio_rtf_colocated = audio_rtf + text_tokens_per_audio_sec * t_tpot
 
@@ -673,7 +685,7 @@ if __name__ == "__main__":
     single_chip = stacked_gpu_base()
     granularity = Modeling_Granularity(mode="coarse", comp_comm_overlap=True, auto_tune=False, dump_perf_log=False)
 
-    # 8 卡: encoder/talker/code2wav tp=8; thinker tp=8 / moe ep=8
+    # 8 GPUs: encoder/talker/code2wav tp=8; thinker tp=8 / moe ep=8.
     p_dense = ParallelScheme(tp=8, ep=1, sp=1, cp=1, dp=1, pp=1, fsdp=False)
     p_moe = ParallelScheme(tp=1, ep=8, sp=1, cp=1, dp=1, pp=1, fsdp=False)
     plan = OmniParallelPlan(

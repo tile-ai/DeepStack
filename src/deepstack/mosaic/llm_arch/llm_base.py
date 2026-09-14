@@ -64,7 +64,7 @@
 
 #         self.hidden_size = None
         
-#         # 实例化各个架构组件
+#         # Instantiate each architecture component
 #         self.moe_arch = MoE_Arch()
 #         self.dense_ffn_arch = Dense_FFN_Arch()
 #         self.gqa_arch = GQA_Arch()
@@ -75,7 +75,7 @@ from typing import Optional
 import torch
 from mosaic.utils import OpBytes, Tensor_Loc
 
-# 定义一个默认的OpBytes工厂函数，以避免可变默认参数问题
+# Define a default OpBytes factory function to avoid mutable default arguments
 def default_op_bytes():
     return OpBytes(
         input1=Tensor_Loc(dtype=torch.float16, loc="ddr"),
@@ -159,10 +159,8 @@ class Attention_Pattern_Arch:
 
 @dataclass
 class LLM_Arch:
-    """
-    一个通用的LLM架构基类,负责持有和校验架构组件。
-    """
-    # 核心参数
+    """General LLM architecture base class that stores and validates its components."""
+    # Core parameters
     hidden_size: int
     num_layer: int
     num_dense_layer: int
@@ -174,7 +172,7 @@ class LLM_Arch:
     add_residual_bytes: OpBytes = field(default_factory=default_op_bytes)
 
 
-    # Attention组件保持不变
+    # Keep the Attention components unchanged
     # attention_arch: Union[GQA_Arch, MLA_Arch]
 
     gqa_arch: Optional[GQA_Arch] = None
@@ -185,16 +183,16 @@ class LLM_Arch:
     attention_pattern_arch: Optional[Attention_Pattern_Arch] = None
 
     def __post_init__(self):
-        # 初始化后的校验逻辑保持不变
-        # 校验1: 总层数必须匹配
+        # Keep post-initialization validation unchanged
+        # Check 1: total layer counts must match
         if self.num_layer != self.num_dense_layer + self.num_moe_layer:
             raise ValueError("总层数必须是 dense 层和 MoE 层的总和。")
 
-        # 校验 2: 如果声明了有dense层，那么dense_ffn_arch必须存在
+        # Check 2: if dense layers are declared, dense_ffn_arch must exist
         if self.num_dense_layer > 0 and self.dense_ffn_arch is None:
             raise ValueError("模型声明了 dense 层, 但 dense_ffn_arch 未被提供。")
         
-        # 校验 3: 如果声明了有moe层，那么moe_arch必须存在
+        # Check 3: if moe layers are declared, moe_arch must exist
         if self.num_moe_layer > 0 and self.moe_arch is None:
             raise ValueError("模型声明了 moe 层, 但 moe_arch 未被提供。")
 

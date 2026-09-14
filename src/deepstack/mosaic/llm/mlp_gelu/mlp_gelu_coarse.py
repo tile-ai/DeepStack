@@ -1,6 +1,6 @@
-# 非门控 2-GEMM MLP (encoder 用): y = W2 @ act(W1 @ x)
-# 对应 Qwen3OmniMoeVisionMLP / AudioEncoderLayer fc1-fc2 / TalkerResizeMLP 等 gelu MLP。
-# 结构照 swiglu_coarse: stage1 = x@W1 + gelu (smem 融合), stage2 = @W2 + tp 归约。
+# Non-gated 2-GEMM MLP (for encoders): y = W2 @ act(W1 @ x)
+# Corresponds to gelu MLPs such as Qwen3OmniMoeVisionMLP / AudioEncoderLayer fc1-fc2 / TalkerResizeMLP.
+# Follows swiglu_coarse: stage1 = x@W1 + gelu (fused in shared memory), stage2 = @W2 + tp reduction.
 import torch
 import math
 import numpy as np
@@ -61,7 +61,7 @@ def mlp_gelu_coarse_stage1(bs:int, seq:int, hidden:int, up_hidden:int, parallel:
     else:
         additional_time = noc_overall_time_1
 
-    # gelu: tanh 近似 = 常数乘加(cuda) + tanh(sfu) + 乘(cuda), 按 sfu 1 pass + cuda 2 pass 建模
+    # gelu: tanh approximation = constant multiply-add (cuda) + tanh (sfu) + multiply (cuda), modeled as 1 sfu pass + 2 cuda passes
     gelu_tb_tile = (gemm_tiling_config[0], gemm_tiling_config[1])
     gelu_bytes_sfu = OpBytes(
         input1=Tensor_Loc(mlp_bytes.input1.dtype, 'smem', [shard_bs, shard_seq, shard_up_hidden]),
@@ -96,7 +96,7 @@ def mlp_gelu_coarse_stage2(bs:int, seq:int, hidden:int, up_hidden:int, out_hidde
     shard_seq = math.ceil(seq / parallel.sp)
 
     # act[bs/dp, seq/sp, up_hidden/tp] @ W2[up_hidden/tp, out_hidden] -> [bs/dp, seq/sp, out_hidden]
-    # tp-level 归约
+    # tp-level reduction
 
     if (parallel.fsdp == False or parallel.dp == 1):
         noc_hop_time_1, noc_ext_max_1, noc_overall_time_1 = 0, 0, 0

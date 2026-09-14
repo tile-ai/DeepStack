@@ -25,8 +25,8 @@ from mosaic.cost.op_perf_stats import OpPerfStats
 def ropeq_decoding_coarse_raw(bs:int, head:int, seq:int, head_dim:int, parallel:ParallelScheme, next_parallel:ParallelScheme, rope_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, stats: "OpPerfStats | None" = None):
 
     # rope(x, cos, sin)=x⊗cos+rot(x)⊗sin  
-    # 其中，x [bs, head, seq, hidden/head], cos 和sin都是[1,1,seq,hidden/head], rot算子就是在最后一维重排，例如x[x1, x2], rot(x)= [-x2, x1]
-    # 数学上计算定义为：RoPE 对一个向量 [ 𝑎 , 𝑏 ] （即前半部分和后半部分）做二维旋转：
+    # Here x [bs, head, seq, hidden/head], cos and sin are both [1,1,seq,hidden/head]; rot rearranges the last dimension, e.g., x[x1, x2], rot(x)= [-x2, x1]
+    # Mathematical definition: RoPE applies a 2D rotation to a vector [𝑎, 𝑏] (its first and second halves):
     # [ 𝑎 ′ , 𝑏 ′ ] = [ 𝑎 ⋅ cos ⁡ 𝜃 − 𝑏 ⋅ sin ⁡ 𝜃 , 𝑎 ⋅ sin ⁡ 𝜃 + 𝑏 ⋅ cos ⁡ 𝜃 ]
 
     in_bytes, weight_bytes, out_bytes = rope_bytes.get_dtype_bytes()

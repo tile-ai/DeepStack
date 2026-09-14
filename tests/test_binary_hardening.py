@@ -21,7 +21,6 @@ BINARY_PATTERNS = (
     "src/deepstack/mosaic/arch/_reference_model*.so",
     "src/deepstack/mosaic/cost/_capacity*.so",
     "src/deepstack/mosaic/noc/_model_support*.so",
-    "src/tilesight/tilesight/distributed/noc/_model_support*.so",
 )
 
 FORBIDDEN_BINARY_MARKERS = binary_audit.COMMON_FORBIDDEN_MARKERS
@@ -70,11 +69,6 @@ PROVIDER_CALLABLES = {
         "p97",
         "p98",
     ),
-    "tilesight.distributed.noc._model_support": (
-        "p00",
-        "p01",
-        "p98",
-    ),
 }
 
 
@@ -89,7 +83,7 @@ def _model_support_binaries() -> list[Path]:
 
 def test_model_support_binaries_omit_build_and_calibration_markers() -> None:
     binaries = _model_support_binaries()
-    assert len(binaries) == 4
+    assert len(binaries) == 3
     for binary in binaries:
         payload = binary.read_bytes()
         for marker in FORBIDDEN_BINARY_MARKERS:

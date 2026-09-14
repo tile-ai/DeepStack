@@ -1,5 +1,5 @@
 def estimate_experts_activated(num_tokens_per_device: int, num_experts_per_device: int):
-    # num_tokens_per_device / num_experts_per_device 往下整除是多少？
+    # What is the floor quotient of num_tokens_per_device / num_experts_per_device?
     few_activated_times = num_tokens_per_device // num_experts_per_device
     more_activated_times = few_activated_times + 1
 

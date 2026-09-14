@@ -24,18 +24,18 @@ from .dsa_indexer_coarse import dsa_indexer_proj_coarse, dsa_indexer_score_topk_
 log = logging.getLogger(__name__)
 
 # DeepSeek-V3.2 DSA prefill:
-# 与 MLA prefill (no weight absorption, MHA form) 的区别:
-# 1. 多一个 lightning indexer: 投影 + 对 seq x seq 的 score 计算 + topk。
-#    注意 indexer 的 score GEMM 是 O(seq^2 * H_i * D_i), 没有被稀疏化,
-#    但 D_i=128 远小于主注意力的 (nope+rope)*num_head, 且真实 kernel 用 fp8。
-# 2. 主注意力每个 query 只 attend 被选中的 min(index_topk, seq) 个 token,
-#    通过 mla_fa_prefill_wrapper 的 seq_kv 参数表达。
-#    (与现有 FA prefill 建模一致, 不做 causal 折半; sparse 下每 query kv 数
-#    上限为 topk, 取 seq_kv = min(index_topk, seq)。)
+# Differences from MLA prefill (no weight absorption, MHA form):
+# 1. An additional lightning indexer: projections + score computation over seq x seq + topk.
+#    Note that the indexer score GEMM remains O(seq^2 * H_i * D_i), without sparsification,
+#    but D_i=128 is much smaller than (nope+rope)*num_head in main attention, and the actual kernel uses fp8.
+# 2. Each main-attention query attends only to the selected min(index_topk, seq) tokens,
+#    expressed through the seq_kv parameter of mla_fa_prefill_wrapper.
+#    (Consistent with existing FA prefill modeling, no halving for causality; under sparsity, the kv count per query
+#    is capped at topk, so seq_kv = min(index_topk, seq).)
 
 
 def dsa_sparse_fa_prefill_coarse(bs:int, seq:int, model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme, next_parallel:ParallelScheme, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, stats: "OpPerfStats | None" = None):
-    # 与 mla_prefill_coarse_stage5_1 相同, 但有效 kv 长度截断到 index_topk
+    # Same as mla_prefill_coarse_stage5_1, but cap effective kv length at index_topk
     assert model_arch.mla_arch is not None
     assert model_arch.dsa_arch is not None
     mla_arch = model_arch.mla_arch
@@ -63,7 +63,7 @@ def dsa_sparse_fa_prefill_coarse(bs:int, seq:int, model_arch:LLM_Arch, parallel:
         log.info("dsa sparse fa prefill overall time: %s s", single_chip_time)
         return single_chip_time
     elif (atten_parallel.cp > 1):
-        # reduce-scatter along atten.cp (每个 cp rank 在本地 topk/cp 的 kv 上算 partial attention)
+        # reduce-scatter along atten.cp (each cp rank computes partial attention over its local topk/cp kv entries)
         cp_reduce_latency, cp_reduce_ext_max, cp_reduce_traffic = reduce_scatter_wrapper(all_reduce_op_bytes=atten_bytes, parallel=atten_parallel,
         noc_hierarchy=noc_hierarchy, granularity=granularity, dim_to_process="cp", bytes=shard_bs*shard_num_head*shard_seq_q*head_dim*in_bytes)
         if stats is not None:
@@ -77,10 +77,9 @@ def dsa_sparse_fa_prefill_coarse(bs:int, seq:int, model_arch:LLM_Arch, parallel:
 
 
 def dsa_mla_prefill_coarse(bs:int, seq:int, model_arch:LLM_Arch, parallel:ParallelScheme, atten_parallel:ParallelScheme, next_parallel:ParallelScheme, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy):
-    '''
-    Prefill: MLA (no weight absorption, MHA form) + DSA lightning indexer + sparse FA。
-    返回与 mla_prefill_coarse 相同: (time, stats)
-    '''
+    """Model unabsorbed MLA prefill in MHA form, the DSA lightning indexer, and sparse
+    FlashAttention. Return (time, stats), as in mla_prefill_coarse.
+    """
     if granularity.dump_perf_log == True:
         stats = OpPerfStats(op_name="dsa_mla_prefill", dump_perf_log=True)
     else:
@@ -89,7 +88,7 @@ def dsa_mla_prefill_coarse(bs:int, seq:int, model_arch:LLM_Arch, parallel:Parall
     assert model_arch.mla_arch is not None
     assert model_arch.dsa_arch is not None
 
-    # ------------------------------------- MLA 投影 stage -------------------------------------
+    # ------------------------------------- MLA projection stages -------------------------------------
     time_stage1 = mla_prefill_coarse_stage1(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
     time_stage2 = mla_prefill_coarse_stage2(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
     time_stage3 = mla_prefill_coarse_stage3(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
@@ -99,7 +98,7 @@ def dsa_mla_prefill_coarse(bs:int, seq:int, model_arch:LLM_Arch, parallel:Parall
     time_indexer_proj = dsa_indexer_proj_coarse(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
     time_indexer_score = dsa_indexer_score_topk_coarse(bs=bs, seq=seq, kv_len=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
 
-    # ------------------------------------- sparse FA + 输出投影 -------------------------------------
+    # ------------------------------------- sparse FA + output projection -------------------------------------
     time_stage5_1 = dsa_sparse_fa_prefill_coarse(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
     time_stage5_2 = mla_prefill_coarse_stage5_2(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)
     time_stage6 = mla_prefill_coarse_stage6(bs=bs, seq=seq, model_arch=model_arch, parallel=parallel, atten_parallel=atten_parallel, next_parallel=next_parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy, stats=stats)

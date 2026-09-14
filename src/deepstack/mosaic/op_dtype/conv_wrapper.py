@@ -1,6 +1,6 @@
-# conv 的 implicit-GEMM 建模 wrapper: 走 TileSight 的
-# conv_implicit_gemm_fused_op (带 conv 专用 L2 复用/halo 命中率模型),
-# 结构与 gemm_wrapper 一致 (默认 tiling + hete 后处理)。
+# Conv implicit-GEMM modeling wrapper: uses TileSight's
+# conv_implicit_gemm_fused_op (with a conv-specific L2 reuse/halo hit-rate model),
+# following the same structure as gemm_wrapper (default tiling + hete postprocessing).
 import math
 import numpy as np
 from mosaic.utils import OpBytes, Modeling_Granularity
@@ -18,8 +18,10 @@ log = logging.getLogger(__name__)
 
 def conv_implicit_gemm_wrapper(n:int, f:int, h_out:int, w_out:int, c:int, kh:int, kw:int,
                                conv_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch):
-    """conv (NCHW, implicit GEMM): m = n*h_out*w_out, n = f(out channels), k = kh*kw*c。
-    返回 (hete_post_data, smem_fusion_post_data, tiling_config), 与 gemm_wrapper 同构。"""
+    """Convolution (NCHW, implicit GEMM): m = n*h_out*w_out, n = f (output channels),
+    k = kh*kw*c.
+    Return (hete_post_data, smem_fusion_post_data, tiling_config), matching gemm_wrapper.
+    """
     m, nn, k = n * h_out * w_out, f, kh * kw * c
     input_bytes, weight_bytes, output_bytes = conv_bytes.get_dtype_bytes()
 

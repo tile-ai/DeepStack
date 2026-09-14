@@ -120,7 +120,7 @@ def rms_norm_coarse_stage1(bs:int, seq:int, hidden:int, parallel:ParallelScheme,
 def rms_norm_coarse_stage2(bs:int, seq:int, hidden:int, parallel:ParallelScheme, rms_norm_bytes:OpBytes, granularity:Modeling_Granularity, single_chip:Arch, noc_hierarchy:Hierarchy, stats:"OpPerfStats | None" = None):
     # # ------------------------------------- stage 2 -------------------------------------
     # # fused:
-    # +epsislon (1e-5), sqrt, 1/rep, [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] -> [bs/dp, seq/sp, 1] , 一个cuda core，两个sfu
+    # +epsislon (1e-5), sqrt, 1/rep, [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] -> [bs/dp, seq/sp, 1], one cuda core operation and two sfu operations
     # Step 2 mean+ epsilon -> [bs/dp, seq/sp, hidden/tp]   
     # sqrt,
     # 1/rep
@@ -266,7 +266,7 @@ def rms_norm_coarse(bs:int, seq:int, hidden:int, parallel:ParallelScheme, next_p
 
     # # ------------------------------------- stage 2 -------------------------------------
     # # fused:
-    # +epsislon (1e-5), sqrt, 1/rep, [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] -> [bs/dp, seq/sp, 1] , 一个cuda core，两个sfu
+    # +epsislon (1e-5), sqrt, 1/rep, [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] - > [bs/dp, seq/sp, 1] -> [bs/dp, seq/sp, 1], one cuda core operation and two sfu operations
     # Step 2 mean+ epsilon -> [bs/dp, seq/sp, hidden/tp]   
     # sqrt,
     # 1/rep

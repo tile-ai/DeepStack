@@ -4,9 +4,7 @@ from typing import Sequence, Optional
 
 
 def _sample_unique_indices(rng: np.random.Generator, num_experts: int, k: int) -> np.ndarray:
-    """
-    从 [0, num_experts) 中无放回采样 k 个索引，返回升序的 int64 数组。
-    """
+    """Sample k indices without replacement from [0, num_experts) and return a sorted int64 array."""
     if k > num_experts:
         raise ValueError(f"k={k} 不能大于 num_experts={num_experts}")
     picked = rng.choice(num_experts, size=k, replace=False)
@@ -23,11 +21,11 @@ def generate_random_routing_npz(
     k: int = 8,
     seed: Optional[int] = 42,
 ):
-    """
-    生成一个包含 'prefill' 与 'decode' 的 .npz：
-      - prefill 形状为 [num_layers, num_iters, k]
-      - decode  形状为 [num_iters, num_layers, batch_size, k]
-    每个位置存放从 [0, num_experts) 无放回采样得到的 k 个 expert ID（升序）。
+    """Generate a .npz file containing 'prefill' and 'decode':
+      - prefill has shape [num_layers, num_iters, k].
+      - decode has shape [num_iters, num_layers, batch_size, k].
+    Each entry along the leading dimensions contains k expert IDs sampled without
+    replacement from [0, num_experts), sorted in ascending order.
     """
     rng = np.random.default_rng(seed)
 
@@ -57,9 +55,8 @@ def generate_all_ks(
     batch_size: int = 4,
     seed: Optional[int] = 42,
 ):
-    """
-    批量为多个 k 生成 .npz 文件，文件命名为 moe_activations_k{K}.npz。
-    输出目录按 data/qwen_e{num_experts}_a{k}/ 区分不同 k。
+    """Generate .npz files for multiple k values, named moe_activations_k{K}.npz.
+    Use separate output directories data/qwen_e{num_experts}_a{k}/ for each k.
     """
     for k in ks:
         output_dir_k = os.path.join(base_dir, f"qwen_e{num_experts}_a{k}")
@@ -72,14 +69,14 @@ def generate_all_ks(
             num_iters=num_iters,
             batch_size=batch_size,
             k=k,
-            seed=None if seed is None else (seed + k),  # 让不同 k 的文件也有不同随机性
+            seed=None if seed is None else (seed + k),  # Give files with different k different randomness as well
         )
         print(f"已生成: {outfile}")
 
 
 if __name__ == "__main__":
-    # 目标目录与参数
-    # 相对项目根路径：DeepStack data/
+    # Target directory and parameters
+    # Relative to the project root: DeepStack data/
     base_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     base_dir = os.path.abspath(base_dir)
 

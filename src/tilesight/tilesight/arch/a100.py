@@ -1,4 +1,4 @@
-# 文件名: a100.py
+# Filename: a100.py
 from .arch_base import Arch
 
 class A100(Arch):
@@ -64,15 +64,15 @@ class A100(Arch):
         self.compute_max_util=0.9
 
     # def set_to_analytical_upper_bounds(self):
-    #     # 设定分析上限
-    #     self.max_freq = 1.5 * 1e9  # 假设频率可以提升到1.5 GHz
-    #     self.ddr_bandwidth = 2100 * 1e9  # 假设DDR带宽可以提升
-    #     self.l2_bandwidth = 6000 * 1e9  # 提升L2缓存带宽
-    #     self.fp16_tensor_flops = 350 * 1e12  # 假设FP16混合精度的理论性能提升
-    #     self.fp32_cuda_core_flops = self.sm_count * self.max_freq * self.fp32_cores_per_sm * 2 * 1.5  # FP32性能提升
-    #     self.smem_bandwidth = 22000 * 1e9  # SMEM带宽提升
+    #     # Set upper bounds for analysis
+    #     self.max_freq = 1.5 * 1e9  # Assume frequency can increase to 1.5 GHz
+    #     self.ddr_bandwidth = 2100 * 1e9  # Assume DDR bandwidth can increase
+    #     self.l2_bandwidth = 6000 * 1e9  # Increase L2 cache bandwidth
+    #     self.fp16_tensor_flops = 350 * 1e12  # Assume increased theoretical FP16 mixed-precision performance
+    #     self.fp32_cuda_core_flops = self.sm_count * self.max_freq * self.fp32_cores_per_sm * 2 * 1.5  # Increase FP32 performance
+    #     self.smem_bandwidth = 22000 * 1e9  # Increase shared-memory bandwidth
 
-    #     # 重新计算所有依赖这些值的衍生属性
+    #     # Recalculate all derived attributes that depend on these values
     #     self.calculate_derived_properties()
     def set_to_microbench(self):
         # Values from the project A100 calibration microbenchmark.
@@ -105,7 +105,7 @@ class A100(Arch):
         return self
 
     def set_to_spec(self):
-        # 设定分析上限
+        # Set upper bounds for analysis
         # self.max_freq = 1.5 * 1e9
         self.base_freq = 1.41 * 1e9
         self.max_freq = 1.41 * 1e9
