@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepstack"
+version = "1.0.0"
+description = "Analytical modeling for GPU and 3D-stacked LLM inference"
+requires-python = ">=3.11,<3.12"
+dependencies = ["numpy", "pandas", "scipy", "torch", "networkx", "ijson", "plotly", "matplotlib", "PyYAML", "regex", "sympy", "seaborn", "tqdm"]
+license = "Apache-2.0 AND LicenseRef-DeepStack-AE-Binary-1.0"
+license-files = ["LICENSE", "LICENSING.md", "LICENSES/*.txt", "NOTICE", "THIRD_PARTY_NOTICES.md"]
+
+[tool.setuptools.package-dir]
+mosaic = "src/deepstack/mosaic"
+bank_oracle = "src/deepstack/bank_oracle"
+tilesight = "src/tilesight/tilesight"
+
+[tool.setuptools.packages.find]
+where = ["src/deepstack", "src/tilesight"]
+include = ["mosaic*", "bank_oracle*", "tilesight*"]
+exclude = ["*.tests", "*.tests.*"]
+
+[tool.setuptools.package-data]
+mosaic = ["arch/*.so", "arch/*.so.license", "cost/*.so", "cost/*.so.license", "noc/*.so", "noc/*.so.license", "data/**/*.npz", "data/**/*.json"]
+bank_oracle = ["visualization/*.html", "visualization/artifacts/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"

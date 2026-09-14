@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bank-wave conflict explorer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #081018;
+      --panel: #101b27;
+      --panel-2: #142332;
+      --line: #26394a;
+      --text: #e8f0f7;
+      --muted: #91a6b8;
+      --blue: #42b7ef;
+      --cyan: #55f0dc;
+      --amber: #ffbd59;
+      --red: #ff7272;
+      --green: #70df9a;
+      --purple: #bc8cff;
+      --inactive: #1a2835;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(45, 125, 170, .16), transparent 32rem),
+        radial-gradient(circle at 85% 10%, rgba(92, 67, 164, .13), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 26px 30px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(8, 16, 24, .8);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(14px);
+    }
+    h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: .01em; }
+    h2 { font-size: 16px; margin: 0; }
+    h3 { font-size: 14px; margin: 0; }
+    p { line-height: 1.55; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+    main { padding: 22px 30px 40px; max-width: 1700px; margin: 0 auto; }
+    .panel {
+      background: linear-gradient(145deg, rgba(17, 30, 43, .96), rgba(12, 23, 33, .96));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 10px 34px rgba(0, 0, 0, .18);
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1fr) minmax(260px, 1.3fr) auto;
+      gap: 12px;
+      align-items: end;
+      padding: 16px;
+    }
+    label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+    select, button {
+      font: inherit;
+      color: var(--text);
+      background: #132230;
+      border: 1px solid #30475a;
+      border-radius: 8px;
+      min-height: 38px;
+    }
+    select { width: 100%; padding: 0 10px; }
+    button { cursor: pointer; padding: 7px 12px; }
+    button:hover { border-color: var(--blue); }
+    button.active { border-color: var(--cyan); background: rgba(42, 148, 169, .22); }
+    .play-controls { display: flex; gap: 6px; }
+    .play-controls button { min-width: 42px; }
+    .scenario-copy {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .copy-block { padding: 15px 17px; }
+    .copy-block p { margin: 7px 0 0; color: #bfd0dd; font-size: 13px; }
+    .formula {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #d8e7f2;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .variant-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .variant-card {
+      text-align: left;
+      padding: 12px 14px;
+      background: rgba(17, 31, 44, .88);
+    }
+    .variant-card strong { display: block; margin-bottom: 7px; }
+    .variant-metrics { color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .variant-card.active { box-shadow: inset 0 0 0 1px var(--cyan); }
+    .diagnostics { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 11px;
+      border: 1px solid var(--line);
+      background: #101f2b;
+    }
+    .badge.good { color: var(--green); border-color: rgba(112, 223, 154, .45); }
+    .badge.warn { color: var(--amber); border-color: rgba(255, 189, 89, .5); }
+    .badge.bad { color: var(--red); border-color: rgba(255, 114, 114, .55); }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(105px, 1fr));
+      gap: 9px;
+      margin-bottom: 12px;
+    }
+    .kpi { padding: 11px 12px; min-height: 78px; }
+    .kpi .name { font-size: 10px; color: var(--muted); min-height: 25px; }
+    .kpi .value { font: 650 19px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .kpi .hint { color: #6f8799; font-size: 9px; margin-top: 5px; }
+    .matrix-panel { padding: 15px; margin-bottom: 12px; }
+    .matrix-panel.hidden { display: none; }
+    .matrix-note { color: var(--muted); font-size: 10px; line-height: 1.5; max-width: 760px; }
+    .matrix-panes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .matrix-card {
+      background: rgba(7, 17, 25, .58);
+      border: 1px solid #263b4b;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .matrix-card-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+    .matrix-card-meta { color: var(--muted); font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .matrix-canvas {
+      width: 100%;
+      height: 260px;
+      display: block;
+      background: #071018;
+      border: 1px solid #263b4b;
+      border-radius: 6px;
+      cursor: crosshair;
+      image-rendering: pixelated;
+    }
+    .matrix-hover { min-height: 17px; margin-top: 5px; color: #a9bdcb; font-size: 9px; }
+    .tile-detail {
+      display: grid;
+      grid-template-columns: minmax(340px, 1.35fr) minmax(310px, .9fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .tile-sector-map, .tile-histogram-box {
+      background: rgba(7, 17, 25, .58);
+      border: 1px solid #263b4b;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .tile-detail-copy { color: var(--muted); font-size: 10px; margin: 5px 0 9px; line-height: 1.5; }
+    .sector-bank-grid {
+      display: grid;
+      grid-template-columns: repeat(16, minmax(16px, 1fr));
+      gap: 3px;
+      max-height: 235px;
+      overflow: auto;
+    }
+    .sector-bank-cell {
+      min-height: 24px;
+      border-radius: 3px;
+      border: 1px solid rgba(255,255,255,.2);
+      color: #071018;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    #tile-bank-histogram { width: 100%; height: 255px; display: block; }
+    .workbench {
+      display: grid;
+      grid-template-columns: minmax(760px, 2.2fr) minmax(330px, .85fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+    .topology-panel { padding: 15px; overflow-x: auto; }
+    .panel-heading { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin-bottom: 12px; }
+    .legend { display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 10px; }
+    .swatch { width: 10px; height: 10px; display: inline-block; border-radius: 2px; margin-right: 4px; }
+    .bank-topology { min-width: 760px; display: grid; gap: 8px; }
+    .layer-row {
+      display: grid;
+      grid-template-columns: 65px repeat(16, minmax(39px, 1fr));
+      gap: 5px;
+      align-items: stretch;
+    }
+    .layer-label {
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .bank-card {
+      position: relative;
+      min-height: 70px;
+      border-radius: 7px;
+      border: 1px solid #2a4052;
+      background: var(--inactive);
+      padding: 6px 4px;
+      text-align: center;
+      overflow: hidden;
+    }
+    .bank-card.selected { outline: 2px solid var(--cyan); outline-offset: 1px; }
+    .bank-card.hotspot { border-color: var(--red); }
+    .bank-card .bank-id { font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .bank-card .bank-cycle { font: 650 10px ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 7px; }
+    .bank-card .bank-small { color: #b6c8d5; font-size: 8px; margin-top: 4px; }
+    .bank-key {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      bottom: 3px;
+      height: 3px;
+      border-radius: 2px;
+      opacity: .9;
+    }
+    .column-axis {
+      display: grid;
+      grid-template-columns: 65px repeat(16, minmax(39px, 1fr));
+      gap: 5px;
+      color: #637b8d;
+      font: 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-align: center;
+    }
+    .inspector { padding: 15px; min-height: 440px; max-height: 730px; overflow: auto; }
+    .bank-summary { color: var(--muted); font-size: 11px; margin: 7px 0 13px; }
+    .job-card {
+      background: rgba(7, 17, 25, .7);
+      border: 1px solid #263b4b;
+      border-radius: 8px;
+      padding: 9px;
+      margin-bottom: 8px;
+    }
+    .job-title { font-size: 10px; color: #c9d9e5; line-height: 1.45; }
+    .job-meta { font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); margin: 5px 0 7px; }
+    .sector-mask { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
+    .sector {
+      height: 14px;
+      border-radius: 2px;
+      background: #1c2b37;
+      border: 1px solid #263c4b;
+      font-size: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #668093;
+    }
+    .sector.on { background: var(--blue); border-color: #86d8ff; color: #04121c; }
+    .access-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 9px; }
+    .access-table th, .access-table td { border-bottom: 1px solid #223746; padding: 5px 3px; text-align: left; }
+    .access-table th { color: var(--muted); font-weight: 500; }
+    .section-title { margin: 15px 0 7px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .empty { color: #637b8e; font-size: 11px; padding: 12px 0; }
+    .histogram-panel { padding: 15px; margin-top: 12px; }
+    .metric-buttons { display: flex; gap: 6px; }
+    .metric-buttons button { min-height: 30px; padding: 4px 9px; font-size: 10px; }
+    #histogram { display: block; width: 100%; min-height: 310px; overflow: visible; }
+    .hist-legend { display: flex; gap: 16px; color: var(--muted); font-size: 10px; margin: 8px 0 0; flex-wrap: wrap; }
+    .context-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .context-chip { border: 1px solid #2a4051; border-radius: 6px; padding: 5px 7px; color: #a8bdcc; font-size: 9px; }
+    .footnote { color: #7f96a8; font-size: 11px; margin: 14px 3px 0; line-height: 1.55; }
+    @media (max-width: 1150px) {
+      .controls { grid-template-columns: 1fr 1fr; }
+      .scenario-copy, .workbench { grid-template-columns: 1fr; }
+      .matrix-panes, .tile-detail { grid-template-columns: 1fr; }
+      .kpis { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 700px) {
+      header, main { padding-left: 14px; padding-right: 14px; }
+      .controls { grid-template-columns: 1fr; }
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="page-title">Bank-wave conflict explorer</h1>
+    <div class="subtitle" id="page-subtitle"></div>
+  </header>
+  <main>
+    <section class="panel controls">
+      <div>
+        <label for="scenario-select">Scenario</label>
+        <select id="scenario-select"></select>
+      </div>
+      <div>
+        <label for="wave-select">Spatial / K wave</label>
+        <select id="wave-select"></select>
+      </div>
+      <div>
+        <label for="request-select">Visible access scope</label>
+        <select id="request-select"></select>
+      </div>
+      <div>
+        <label>Animate requests</label>
+        <div class="play-controls">
+          <button id="prev-request" title="Previous request">◀</button>
+          <button id="play-request" title="Play or pause">▶</button>
+          <button id="next-request" title="Next request">▶|</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="scenario-copy">
+      <div class="panel copy-block">
+        <h2 id="scenario-title"></h2>
+        <p id="scenario-description"></p>
+        <div class="context-grid" id="context-grid"></div>
+      </div>
+      <div class="panel copy-block">
+        <h2>Timing semantics</h2>
+        <p class="formula">one row job = configured sector cycles × touched sectors + configured recharge cycles
+wave time = slowest scheduled bank / shared-port critical path</p>
+      </div>
+    </section>
+
+    <section class="variant-strip" id="variant-strip"></section>
+    <section class="diagnostics" id="diagnostics"></section>
+    <section class="kpis" id="kpis"></section>
+
+    <section class="panel matrix-panel hidden" id="matrix-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Logical A/B tiles → physical-bank colors</h2>
+          <div class="matrix-note">
+            A is M×K and B is K×N. Yellow outlines are tiles touched by the selected
+            spatial/K wave. Overview hue is the tile's most-touched bank; click a tile
+            to expand every configured sector using its exact mapped-bank color and histogram.
+          </div>
+        </div>
+        <div class="legend">
+          <span><i class="swatch" style="background:#ffe06b"></i>current wave tile</span>
+          <span><i class="swatch" style="background:#55f0dc"></i>selected tile</span>
+        </div>
+      </div>
+      <div class="matrix-panes" id="matrix-panes"></div>
+      <div class="tile-detail">
+        <div class="tile-sector-map">
+          <h3 id="tile-detail-title">Select an A/B tile</h3>
+          <div class="tile-detail-copy" id="tile-detail-copy"></div>
+          <div class="sector-bank-grid" id="sector-bank-grid"></div>
+        </div>
+        <div class="tile-histogram-box">
+          <h3>Selected logical tile: sectors per bank</h3>
+          <svg id="tile-bank-histogram" viewBox="0 0 680 255"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section class="workbench">
+      <div class="panel topology-panel">
+        <div class="panel-heading">
+          <h2>Physical bank activity — configured topology</h2>
+          <div class="legend">
+            <span><i class="swatch" style="background:#1a2835"></i>inactive</span>
+            <span><i class="swatch" style="background:#1785b5"></i>active</span>
+            <span><i class="swatch" style="background:#ff7272"></i>hotspot border</span>
+          </div>
+        </div>
+        <div class="column-axis" id="column-axis"></div>
+        <div class="bank-topology" id="bank-topology"></div>
+      </div>
+      <aside class="panel inspector">
+        <h2 id="inspector-title">Bank detail</h2>
+        <div class="bank-summary" id="bank-summary"></div>
+        <div class="section-title">Row jobs and configurable sector masks</div>
+        <div id="job-list"></div>
+        <div class="section-title">Logical sector → mapped bank</div>
+        <div id="access-list"></div>
+      </aside>
+    </section>
+
+    <section class="panel histogram-panel">
+      <div class="panel-heading">
+        <h2>Per-bank histogram</h2>
+        <div class="metric-buttons">
+          <button data-metric="cycles" class="active">cycles</button>
+          <button data-metric="jobs">row jobs</button>
+          <button data-metric="sectors">sectors</button>
+        </div>
+      </div>
+      <svg id="histogram" viewBox="0 0 1200 330" role="img" aria-label="Per-bank histogram"></svg>
+      <div class="hist-legend" id="hist-legend"></div>
+    </section>
+
+    <p class="footnote">
+      A red bank outline means “hotspot in this wave”, not automatically a formal conflict.
+      Formal avoidable conflict is the gap between actual cycles and the fixed-row-job lower bound.
+      The absolute sector lower bound additionally allows the layout to reshape row transactions,
+      so its gap is layout/packing headroom. The request animation is a diagnostic replay; it is not
+      a cycle-by-cycle hardware simulator.
+    </p>
+  </main>
+
+  <script id="bank-wave-payload" type="application/octet-stream">__BANK_WAVE_BASE64_PAYLOAD__</script>
+  <script>
+    "use strict";
+    const encoded = document.getElementById("bank-wave-payload").textContent.trim();
+    const binary = atob(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    const DATA = JSON.parse(new TextDecoder().decode(bytes));
+
+    const state = {
+      scenario: 0,
+      variant: 0,
+      wave: 0,
+      request: "all",
+      bank: 0,
+      metric: "cycles",
+      matrixOperand: "A",
+      matrixBlock: 0,
+      timer: null,
+    };
+    const matrixOverviewCache = new Map();
+    const el = (id) => document.getElementById(id);
+    const svgEl = (name) => document.createElementNS("http://www.w3.org/2000/svg", name);
+    const fmt = (value, digits = 3) => {
+      if (!Number.isFinite(value)) return String(value);
+      if (Math.abs(value - Math.round(value)) < 1e-9) return String(Math.round(value));
+      return value.toFixed(digits).replace(/0+$/, "").replace(/\.$/, "");
+    };
+    const fmtBytes = (bytes) => {
+      if (bytes >= 1024 * 1024 && bytes % (1024 * 1024) === 0) return `${bytes / (1024 * 1024)} MiB`;
+      if (bytes >= 1024 && bytes % 1024 === 0) return `${bytes / 1024} KiB`;
+      return `${bytes} B`;
+    };
+    const pct = (value) => `${(100 * value).toFixed(1)}%`;
+    const currentScenario = () => DATA.scenarios[state.scenario];
+    const currentVariant = () => currentScenario().variants[state.variant];
+    const currentWave = () => currentVariant().waves[state.wave];
+
+    function stopPlayback() {
+      if (state.timer !== null) window.clearInterval(state.timer);
+      state.timer = null;
+      el("play-request").textContent = "▶";
+    }
+
+    function setSelectOptions(select, entries, value) {
+      select.innerHTML = "";
+      for (const entry of entries) {
+        const option = document.createElement("option");
+        option.value = String(entry.value);
+        option.textContent = entry.label;
+        select.appendChild(option);
+      }
+      select.value = String(value);
+    }
+
+    function makeBanksFromJobs(jobs, spec) {
+      const banks = Array.from({ length: spec.physical_bank_count }, (_, bank) => ({
+        bank,
+        layer: Math.floor(bank / spec.banks_per_layer),
+        bank_in_layer: bank % spec.banks_per_layer,
+        row_job_count: 0,
+        sector_count: 0,
+        data_cycles: 0,
+        recharge_cycles: 0,
+        total_cycles: 0,
+        hotspot: false,
+      }));
+      for (const job of jobs) {
+        const bank = banks[job.bank];
+        bank.row_job_count += 1;
+        bank.sector_count += job.sector_count;
+        bank.data_cycles += job.data_cycles;
+        bank.recharge_cycles += job.recharge_cycles;
+        bank.total_cycles += job.total_cycles;
+      }
+      const maximum = Math.max(0, ...banks.map((bank) => bank.total_cycles));
+      for (const bank of banks) bank.hotspot = maximum > 0 && bank.total_cycles === maximum;
+      return banks;
+    }
+
+    function scopeData() {
+      const wave = currentWave();
+      if (state.request === "all") {
+        return {
+          label: "Combined wave",
+          summary: wave.summary,
+          banks: wave.banks,
+          jobs: wave.jobs,
+          accessRuns: wave.access_runs,
+        };
+      }
+      const requestId = Number(state.request);
+      const request = wave.requests.find((item) => item.request_id === requestId);
+      const jobs = wave.jobs.filter((job) => job.request_id === requestId);
+      return {
+        label: request ? request.label : `Request ${requestId}`,
+        summary: request ? request.summary : wave.summary,
+        banks: makeBanksFromJobs(jobs, wave.spec),
+        jobs,
+        accessRuns: wave.access_runs.filter((run) => run[0] === requestId),
+      };
+    }
+
+    function renderScenarioControls() {
+      setSelectOptions(
+        el("scenario-select"),
+        DATA.scenarios.map((scenario, index) => ({ value: index, label: scenario.label })),
+        state.scenario,
+      );
+      const variant = currentVariant();
+      if (state.wave >= variant.waves.length) state.wave = 0;
+      setSelectOptions(
+        el("wave-select"),
+        variant.waves.map((wave, index) => ({ value: index, label: wave.label })),
+        state.wave,
+      );
+      const wave = currentWave();
+      const requestOptions = [{ value: "all", label: `Combined wave (${wave.requests.length} request scopes)` }];
+      for (const request of wave.requests) {
+        requestOptions.push({ value: request.request_id, label: request.label });
+      }
+      if (!requestOptions.some((entry) => String(entry.value) === String(state.request))) {
+        state.request = "all";
+      }
+      setSelectOptions(el("request-select"), requestOptions, state.request);
+    }
+
+    function renderCopy() {
+      const scenario = currentScenario();
+      const variant = currentVariant();
+      const wave = currentWave();
+      el("scenario-title").textContent = `${scenario.label} — ${variant.label}`;
+      el("scenario-description").textContent = `${scenario.description} ${variant.explanation}`;
+      const contextGrid = el("context-grid");
+      contextGrid.innerHTML = "";
+      const context = { scope: scopeData().label, ...wave.context };
+      for (const [key, value] of Object.entries(context)) {
+        const chip = document.createElement("span");
+        chip.className = "context-chip";
+        chip.textContent = `${key}: ${Array.isArray(value) ? JSON.stringify(value) : value}`;
+        contextGrid.appendChild(chip);
+      }
+    }
+
+    function renderVariants() {
+      const strip = el("variant-strip");
+      strip.innerHTML = "";
+      currentScenario().variants.forEach((variant, index) => {
+        const waveIndex = Math.min(state.wave, variant.waves.length - 1);
+        const summary = variant.waves[waveIndex].summary;
+        const button = document.createElement("button");
+        button.className = `variant-card${index === state.variant ? " active" : ""}`;
+        const title = document.createElement("strong");
+        title.textContent = variant.label;
+        const metrics = document.createElement("div");
+        metrics.className = "variant-metrics";
+        metrics.textContent = `${fmt(summary.cycles)} cycles · ${summary.active_banks}/${summary.bank_count} banks · fixed ${pct(summary.fixed_job_attainment)} · absolute ${pct(summary.absolute_sector_attainment)}`;
+        button.append(title, metrics);
+        button.addEventListener("click", () => {
+          stopPlayback();
+          state.variant = index;
+          state.wave = Math.min(state.wave, variant.waves.length - 1);
+          state.request = "all";
+          renderAll();
+        });
+        strip.appendChild(button);
+      });
+    }
+
+    function appendBadge(container, className, text) {
+      const badge = document.createElement("span");
+      badge.className = `badge ${className}`;
+      badge.textContent = text;
+      container.appendChild(badge);
+    }
+
+    function renderDiagnostics() {
+      const summary = scopeData().summary;
+      const box = el("diagnostics");
+      box.innerHTML = "";
+      appendBadge(
+        box,
+        summary.avoidable_fixed_job_conflict ? "bad" : "good",
+        summary.avoidable_fixed_job_conflict
+          ? `avoidable row-job conflict: actual / fixed LB = ${fmt(summary.cycles / Math.max(summary.fixed_job_lower_bound_cycles, 1), 2)}×`
+          : "no avoidable conflict among existing row jobs",
+      );
+      appendBadge(
+        box,
+        summary.layout_packing_headroom ? "warn" : "good",
+        summary.layout_packing_headroom
+          ? `layout / packing headroom: absolute attainment ${pct(summary.absolute_sector_attainment)}`
+          : "absolute sector-packing bound reached",
+      );
+      appendBadge(box, "", `transaction efficiency ${pct(summary.transaction_efficiency)}`);
+    }
+
+    function renderKpis() {
+      const summary = scopeData().summary;
+      const definitions = [
+        ["Actual wave", `${fmt(summary.cycles)} cy`, "scheduled makespan"],
+        ["Fixed-row-job LB", `${fmt(summary.fixed_job_lower_bound_cycles)} cy`, "existing jobs, freely balanced"],
+        ["Absolute sector LB", `${fmt(summary.sector_lower_bound_cycles)} cy`, "sectors may be repacked"],
+        ["Active banks", `${summary.active_banks}/${summary.bank_count}`, "physical row buffers"],
+        ["Row jobs", String(summary.row_job_count), "each pays recharge"],
+        ["Sectors / bytes", `${summary.sector_count} / ${summary.transferred_bytes}`, `${currentWave().spec.sector_bytes}-B sectors`],
+        ["Fixed attainment", pct(summary.fixed_job_attainment), "fixed LB / actual"],
+        ["Absolute attainment", pct(summary.absolute_sector_attainment), "sector LB / actual"],
+      ];
+      const box = el("kpis");
+      box.innerHTML = "";
+      for (const [name, value, hint] of definitions) {
+        const card = document.createElement("div");
+        card.className = "panel kpi";
+        const nameEl = document.createElement("div");
+        nameEl.className = "name";
+        nameEl.textContent = name;
+        const valueEl = document.createElement("div");
+        valueEl.className = "value";
+        valueEl.textContent = value;
+        const hintEl = document.createElement("div");
+        hintEl.className = "hint";
+        hintEl.textContent = hint;
+        card.append(nameEl, valueEl, hintEl);
+        box.appendChild(card);
+      }
+    }
+
+    function bankColor(bank, maximum) {
+      if (bank.total_cycles <= 0 || maximum <= 0) return "#1a2835";
+      const ratio = Math.sqrt(bank.total_cycles / maximum);
+      const light = 18 + Math.round(29 * ratio);
+      return `hsl(199 72% ${light}%)`;
+    }
+
+    function renderTopology() {
+      const scope = scopeData();
+      const spec = currentWave().spec;
+      const maximum = Math.max(0, ...scope.banks.map((bank) => bank.total_cycles));
+      const matrixBanks = selectedMatrixBanks();
+      const axis = el("column-axis");
+      axis.innerHTML = "";
+      const blank = document.createElement("span");
+      blank.textContent = "bank/layer";
+      axis.appendChild(blank);
+      for (let column = 0; column < spec.banks_per_layer; column += 1) {
+        const tick = document.createElement("span");
+        tick.textContent = String(column);
+        axis.appendChild(tick);
+      }
+      const topology = el("bank-topology");
+      topology.innerHTML = "";
+      for (let layer = 0; layer < spec.total_layers; layer += 1) {
+        const row = document.createElement("div");
+        row.className = "layer-row";
+        const layerLabel = document.createElement("div");
+        layerLabel.className = "layer-label";
+        layerLabel.textContent = `layer ${layer}`;
+        row.appendChild(layerLabel);
+        for (let column = 0; column < spec.banks_per_layer; column += 1) {
+          const bankId = layer * spec.banks_per_layer + column;
+          const bank = scope.banks[bankId];
+          const button = document.createElement("button");
+          button.className = `bank-card${bank.hotspot && bank.total_cycles > 0 ? " hotspot" : ""}${state.bank === bankId ? " selected" : ""}`;
+          button.style.background = bankColor(bank, maximum);
+          if (matrixBanks.has(bankId)) {
+            button.style.boxShadow = `inset 0 0 0 1px ${bankIdentityColor(bankId)}`;
+          }
+          button.title = `Bank ${bankId}: ${bank.row_job_count} jobs, ${bank.sector_count} sectors, ${fmt(bank.total_cycles)} cycles`;
+          const id = document.createElement("div");
+          id.className = "bank-id";
+          id.textContent = `B${bankId}`;
+          const cycles = document.createElement("div");
+          cycles.className = "bank-cycle";
+          cycles.textContent = `${fmt(bank.total_cycles)} cy`;
+          const small = document.createElement("div");
+          small.className = "bank-small";
+          small.textContent = `J${bank.row_job_count} · S${bank.sector_count}`;
+          const key = document.createElement("span");
+          key.className = "bank-key";
+          key.style.background = bankIdentityColor(bankId);
+          button.append(id, cycles, small, key);
+          button.addEventListener("click", () => {
+            state.bank = bankId;
+            renderTopology();
+            renderInspector();
+          });
+          row.appendChild(button);
+        }
+        topology.appendChild(row);
+      }
+    }
+
+    function requestLabel(requestId) {
+      const request = currentWave().requests.find((item) => item.request_id === requestId);
+      return request ? request.label : `request ${requestId}`;
+    }
+
+    function decodeLogicalSector(logicalSector, spec, connectivity) {
+      if (connectivity === "interleaved") {
+        const bank = logicalSector % spec.physical_bank_count;
+        const stream = Math.floor(logicalSector / spec.physical_bank_count);
+        return {
+          bank,
+          row: Math.floor(stream / spec.sectors_per_row),
+          sector: stream % spec.sectors_per_row,
+        };
+      }
+      const block = Math.floor(logicalSector / spec.sectors_per_row);
+      return {
+        bank: block % spec.physical_bank_count,
+        row: Math.floor(block / spec.physical_bank_count),
+        sector: logicalSector % spec.sectors_per_row,
+      };
+    }
+
+    function mapSwizzledBank(baseBank, row, sector, swizzle, bankCount) {
+      if (swizzle.kind === "none") return (baseBank + swizzle.phase) % bankCount;
+      if (swizzle.kind === "xor") {
+        const sectorWidth = 2 ** swizzle.sector_bits;
+        const rowWidth = 2 ** swizzle.row_bits;
+        const sectorHash = (
+          Math.floor(sector / (2 ** swizzle.sector_source_shift))
+          % sectorWidth
+        ) * (2 ** swizzle.sector_bank_shift);
+        const rowHash = (
+          Math.floor(row / (2 ** swizzle.row_source_shift))
+          % rowWidth
+        ) * (2 ** swizzle.row_bank_shift);
+        return (baseBank ^ sectorHash ^ rowHash ^ swizzle.phase) & (bankCount - 1);
+      }
+      const mapped = (
+        baseBank
+        + swizzle.cyclic_sector_alpha * sector
+        + swizzle.cyclic_row_beta * row
+        + swizzle.phase
+      ) % bankCount;
+      return mapped < 0 ? mapped + bankCount : mapped;
+    }
+
+    function mappingsForBank(accessRuns, selectedBank, limit = 240) {
+      const wave = currentWave();
+      const spec = wave.spec;
+      const mappings = [];
+      let total = 0;
+      for (const run of accessRuns) {
+        const [requestId, groupIndex, constituentRequest, start, length] = run;
+        const group = wave.groups[groupIndex];
+        for (let offset = 0; offset < length; offset += 1) {
+          const logicalSector = start + offset;
+          const base = decodeLogicalSector(logicalSector, spec, wave.connectivity);
+          const mappedBank = mapSwizzledBank(
+            base.bank,
+            base.row,
+            base.sector,
+            group.swizzle,
+            spec.physical_bank_count,
+          );
+          if (mappedBank !== selectedBank) continue;
+          total += 1;
+          if (mappings.length >= limit) continue;
+          mappings.push({
+            request_id: requestId,
+            constituent_request: constituentRequest,
+            logical_sector: logicalSector,
+            base_bank: base.bank,
+            base_row: base.row,
+            base_sector_in_row: base.sector,
+            mapped_bank: mappedBank,
+            row: base.row,
+            sector_in_row: base.sector,
+          });
+        }
+      }
+      return { mappings, total };
+    }
+
+    function bankIdentityColor(bank) {
+      const hue = (bank * 137.508) % 360;
+      return `hsl(${hue.toFixed(1)} 72% 60%)`;
+    }
+
+    function matrixSwizzle(operand) {
+      const group = currentWave().groups.find((item) => item.operand === operand);
+      return group ? group.swizzle : {
+        kind: "none", phase: 0, sector_source_shift: 0, sector_bits: 0,
+        sector_bank_shift: 0, row_source_shift: 0, row_bits: 0,
+        row_bank_shift: 0, cyclic_sector_alpha: 0, cyclic_row_beta: 0,
+      };
+    }
+
+    function matrixBlockInfo(matrixMap, blockIndex, operand, includeSectors = true) {
+      const spec = currentWave().spec;
+      const runs = matrixMap.blocks[blockIndex] || [];
+      const swizzle = matrixSwizzle(operand);
+      const counts = Array(spec.physical_bank_count).fill(0);
+      const sectors = [];
+      for (let runIndex = 0; runIndex < runs.length; runIndex += 2) {
+        const start = runs[runIndex];
+        const length = runs[runIndex + 1];
+        for (let offset = 0; offset < length; offset += 1) {
+          const logicalSector = start + offset;
+          const base = decodeLogicalSector(logicalSector, spec, currentWave().connectivity);
+          const bank = mapSwizzledBank(
+            base.bank, base.row, base.sector, swizzle, spec.physical_bank_count,
+          );
+          counts[bank] += 1;
+          if (includeSectors) {
+            sectors.push({ logicalSector, bank, row: base.row, sector: base.sector });
+          }
+        }
+      }
+      let dominantBank = 0;
+      for (let bank = 1; bank < counts.length; bank += 1) {
+        if (counts[bank] > counts[dominantBank]) dominantBank = bank;
+      }
+      return {
+        counts,
+        sectors,
+        dominantBank,
+        activeBanks: counts.reduce((total, count) => total + (count > 0 ? 1 : 0), 0),
+        sectorCount: counts.reduce((total, count) => total + count, 0),
+      };
+    }
+
+    function matrixOverview(matrixMap, operand) {
+      const key = [
+        currentScenario().scenario_id,
+        currentVariant().variant_id,
+        operand,
+      ].join("|");
+      if (matrixOverviewCache.has(key)) return matrixOverviewCache.get(key);
+      const overview = matrixMap.blocks.map((_, index) => {
+        const info = matrixBlockInfo(matrixMap, index, operand, false);
+        return {
+          dominantBank: info.dominantBank,
+          activeBanks: info.activeBanks,
+          sectorCount: info.sectorCount,
+        };
+      });
+      matrixOverviewCache.set(key, overview);
+      return overview;
+    }
+
+    function activeLogicalBlocks(operand, matrixMap) {
+      const context = currentWave().context;
+      const active = new Set();
+      if (context.kind !== "load" || context.k_tile_start === undefined) return active;
+      const gridCols = matrixMap.grid_shape[1];
+      for (const coordinate of context.cta_coordinates) {
+        const mIndex = coordinate[1];
+        const nIndex = coordinate[2];
+        for (let kIndex = context.k_tile_start; kIndex < context.k_tile_stop; kIndex += 1) {
+          const blockIndex = operand === "A"
+            ? mIndex * gridCols + kIndex
+            : kIndex * gridCols + nIndex;
+          active.add(blockIndex);
+        }
+      }
+      return active;
+    }
+
+    function matrixBlockBounds(matrixMap, blockIndex) {
+      const [gridRows, gridCols] = matrixMap.grid_shape;
+      const row = Math.floor(blockIndex / gridCols);
+      const column = blockIndex % gridCols;
+      const rowStart = row * matrixMap.tile_shape[0];
+      const colStart = column * matrixMap.tile_shape[1];
+      return {
+        row,
+        column,
+        rowStart,
+        rowStop: Math.min(rowStart + matrixMap.tile_shape[0], matrixMap.logical_shape[0]),
+        colStart,
+        colStop: Math.min(colStart + matrixMap.tile_shape[1], matrixMap.logical_shape[1]),
+        gridRows,
+        gridCols,
+      };
+    }
+
+    function matrixBlockDescription(operand, matrixMap, blockIndex, info) {
+      const bounds = matrixBlockBounds(matrixMap, blockIndex);
+      const logicalBytes = (
+        (bounds.rowStop - bounds.rowStart)
+        * (bounds.colStop - bounds.colStart)
+        * matrixMap.dtype_bytes
+      );
+      const touchedBytes = info.sectorCount * currentWave().spec.sector_bytes;
+      return `${operand}[tile ${bounds.row},${bounds.column}] logical rows ${bounds.rowStart}:${bounds.rowStop}, cols ${bounds.colStart}:${bounds.colStop} · effective ${fmtBytes(logicalBytes)} · touched ${info.sectorCount}×${currentWave().spec.sector_bytes}-B sectors (${fmtBytes(touchedBytes)}) · ${info.activeBanks} banks · dominant B${info.dominantBank}`;
+    }
+
+    function renderMatrixCanvas(operand, matrixMap) {
+      const card = document.createElement("div");
+      card.className = "matrix-card";
+      const head = document.createElement("div");
+      head.className = "matrix-card-head";
+      const title = document.createElement("h3");
+      title.textContent = operand === "A" ? "A matrix: M × K" : "B matrix: K × N";
+      const meta = document.createElement("span");
+      meta.className = "matrix-card-meta";
+      const nominalBytes = (
+        matrixMap.tile_shape[0]
+        * matrixMap.tile_shape[1]
+        * matrixMap.dtype_bytes
+      );
+      const nominalSectors = Math.ceil(nominalBytes / currentWave().spec.sector_bytes);
+      meta.textContent = `${matrixMap.logical_shape.join("×")} elements · tile ${matrixMap.tile_shape.join("×")} = ${fmtBytes(nominalBytes)} = ${nominalSectors}×${currentWave().spec.sector_bytes}-B sectors · grid ${matrixMap.grid_shape.join("×")}`;
+      head.append(title, meta);
+      const canvas = document.createElement("canvas");
+      canvas.className = "matrix-canvas";
+      canvas.width = 900;
+      canvas.height = 260;
+      const hover = document.createElement("div");
+      hover.className = "matrix-hover";
+      hover.textContent = "Hover or click a logical tile.";
+      card.append(head, canvas, hover);
+
+      const context = canvas.getContext("2d");
+      const [gridRows, gridCols] = matrixMap.grid_shape;
+      const cellWidth = canvas.width / gridCols;
+      const cellHeight = canvas.height / gridRows;
+      const overview = matrixOverview(matrixMap, operand);
+      const active = activeLogicalBlocks(operand, matrixMap);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      overview.forEach((info, index) => {
+        const row = Math.floor(index / gridCols);
+        const column = index % gridCols;
+        const x = column * cellWidth;
+        const y = row * cellHeight;
+        context.globalAlpha = .45 + .45 * Math.min(info.activeBanks / 16, 1);
+        context.fillStyle = bankIdentityColor(info.dominantBank);
+        context.fillRect(x, y, Math.max(1, cellWidth), Math.max(1, cellHeight));
+        context.globalAlpha = 1;
+        if (active.has(index)) {
+          context.strokeStyle = "#ffe06b";
+          context.lineWidth = Math.max(1, Math.min(cellWidth, cellHeight) > 5 ? 2 : 1);
+          context.strokeRect(x + .5, y + .5, Math.max(1, cellWidth - 1), Math.max(1, cellHeight - 1));
+        }
+        if (state.matrixOperand === operand && state.matrixBlock === index) {
+          context.strokeStyle = "#55f0dc";
+          context.lineWidth = 3;
+          context.strokeRect(x + 1.5, y + 1.5, Math.max(1, cellWidth - 3), Math.max(1, cellHeight - 3));
+        }
+      });
+
+      function eventBlock(event) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (event.clientX - rect.left) * canvas.width / rect.width;
+        const y = (event.clientY - rect.top) * canvas.height / rect.height;
+        const column = Math.min(gridCols - 1, Math.max(0, Math.floor(x / cellWidth)));
+        const row = Math.min(gridRows - 1, Math.max(0, Math.floor(y / cellHeight)));
+        return row * gridCols + column;
+      }
+      canvas.addEventListener("mousemove", (event) => {
+        const index = eventBlock(event);
+        hover.textContent = matrixBlockDescription(operand, matrixMap, index, overview[index]);
+      });
+      canvas.addEventListener("mouseleave", () => {
+        hover.textContent = "Hover or click a logical tile.";
+      });
+      canvas.addEventListener("click", (event) => {
+        state.matrixOperand = operand;
+        state.matrixBlock = eventBlock(event);
+        renderMatrixMaps();
+        renderTopology();
+      });
+      return card;
+    }
+
+    function renderTileHistogram(counts) {
+      const svg = el("tile-bank-histogram");
+      svg.innerHTML = "";
+      const left = 28;
+      const right = 665;
+      const top = 17;
+      const bottom = 220;
+      const maximum = Math.max(1, ...counts);
+      const slot = (right - left) / counts.length;
+      counts.forEach((count, bank) => {
+        const height = count / maximum * (bottom - top);
+        const bar = svgEl("rect");
+        bar.setAttribute("x", left + bank * slot + 1);
+        bar.setAttribute("y", bottom - height);
+        bar.setAttribute("width", Math.max(2, slot - 2));
+        bar.setAttribute("height", height);
+        bar.setAttribute("fill", bankIdentityColor(bank));
+        svg.appendChild(bar);
+        if (bank % 8 === 0) addSvgText(svg, left + (bank + .5) * slot, 239, String(bank), "#718a9d", 8, "middle");
+      });
+      addSvgText(svg, 5, top + 4, String(maximum), "#718a9d", 8);
+      addSvgText(svg, (left + right) / 2, 253, "physical bank", "#91a6b8", 9, "middle");
+    }
+
+    function renderSelectedMatrixTile(matrixMaps) {
+      const operand = matrixMaps[state.matrixOperand] ? state.matrixOperand : "A";
+      const matrixMap = matrixMaps[operand];
+      state.matrixOperand = operand;
+      if (state.matrixBlock >= matrixMap.blocks.length) state.matrixBlock = 0;
+      const info = matrixBlockInfo(matrixMap, state.matrixBlock, operand);
+      const activeList = info.counts
+        .map((count, bank) => count > 0 ? `B${bank}:${count}` : null)
+        .filter(Boolean);
+      el("tile-detail-title").textContent = `${operand} logical tile → exact configured-sector bank colors`;
+      el("tile-detail-copy").textContent = `${matrixBlockDescription(operand, matrixMap, state.matrixBlock, info)} · bank counts ${activeList.join(", ")}`;
+      const grid = el("sector-bank-grid");
+      grid.innerHTML = "";
+      info.sectors.forEach((sector, index) => {
+        const cell = document.createElement("span");
+        cell.className = "sector-bank-cell";
+        cell.style.background = bankIdentityColor(sector.bank);
+        cell.textContent = `B${sector.bank}`;
+        cell.title = `sector #${index} · logical q=${sector.logicalSector} · row=${sector.row} · sector-in-row=${sector.sector}`;
+        grid.appendChild(cell);
+      });
+      renderTileHistogram(info.counts);
+    }
+
+    function renderMatrixMaps() {
+      const scenario = currentScenario();
+      const panel = el("matrix-panel");
+      if (!scenario.matrix_maps) {
+        panel.classList.add("hidden");
+        return;
+      }
+      panel.classList.remove("hidden");
+      const matrixMaps = scenario.matrix_maps;
+      if (!matrixMaps[state.matrixOperand]) state.matrixOperand = "A";
+      const selectedMap = matrixMaps[state.matrixOperand];
+      const active = activeLogicalBlocks(state.matrixOperand, selectedMap);
+      if (state.matrixBlock >= selectedMap.blocks.length) {
+        state.matrixBlock = active.size ? active.values().next().value : 0;
+      }
+      const panes = el("matrix-panes");
+      panes.innerHTML = "";
+      panes.append(
+        renderMatrixCanvas("A", matrixMaps.A),
+        renderMatrixCanvas("B", matrixMaps.B),
+      );
+      renderSelectedMatrixTile(matrixMaps);
+    }
+
+    function selectedMatrixBanks() {
+      const maps = currentScenario().matrix_maps;
+      if (!maps || !maps[state.matrixOperand]) return new Set();
+      const map = maps[state.matrixOperand];
+      if (state.matrixBlock >= map.blocks.length) return new Set();
+      const info = matrixBlockInfo(map, state.matrixBlock, state.matrixOperand, false);
+      return new Set(info.counts.map((count, bank) => count > 0 ? bank : -1).filter((bank) => bank >= 0));
+    }
+
+    function renderInspector() {
+      const scope = scopeData();
+      const bank = scope.banks[state.bank];
+      el("inspector-title").textContent = `Bank B${state.bank} — layer ${bank.layer}, column ${bank.bank_in_layer}`;
+      el("bank-summary").textContent = `${bank.row_job_count} row jobs · ${bank.sector_count} sectors · ${fmt(bank.data_cycles)} data cycles + ${fmt(bank.recharge_cycles)} recharge cycles = ${fmt(bank.total_cycles)} cycles`;
+      const jobs = scope.jobs.filter((job) => job.bank === state.bank);
+      const jobList = el("job-list");
+      jobList.innerHTML = "";
+      if (!jobs.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "This bank is inactive in the selected scope.";
+        jobList.appendChild(empty);
+      }
+      for (const job of jobs) {
+        const card = document.createElement("div");
+        card.className = "job-card";
+        const title = document.createElement("div");
+        title.className = "job-title";
+        title.textContent = requestLabel(job.request_id);
+        const meta = document.createElement("div");
+        meta.className = "job-meta";
+        meta.textContent = `row ${job.row} · mask ${job.sector_mask_hex} · ${job.sector_count} sectors · ${job.data_cycles}+${job.recharge_cycles}=${job.total_cycles} cy`;
+        const mask = document.createElement("div");
+        mask.className = "sector-mask";
+        const active = new Set(job.active_sectors);
+        for (let sector = 0; sector < currentWave().spec.sectors_per_row; sector += 1) {
+          const cell = document.createElement("span");
+          cell.className = `sector${active.has(sector) ? " on" : ""}`;
+          cell.textContent = String(sector);
+          mask.appendChild(cell);
+        }
+        card.append(title, meta, mask);
+        jobList.appendChild(card);
+      }
+
+      const mappingResult = mappingsForBank(scope.accessRuns, state.bank);
+      const mappings = mappingResult.mappings;
+      const accessList = el("access-list");
+      accessList.innerHTML = "";
+      if (!mappings.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No raw logical sectors map to this bank.";
+        accessList.appendChild(empty);
+        return;
+      }
+      const table = document.createElement("table");
+      table.className = "access-table";
+      const head = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      for (const text of ["logical q", "base b/r/s", "mapped b/r/s", "request"]) {
+        const th = document.createElement("th");
+        th.textContent = text;
+        headRow.appendChild(th);
+      }
+      head.appendChild(headRow);
+      const body = document.createElement("tbody");
+      for (const access of mappings) {
+        const row = document.createElement("tr");
+        const values = [
+          access.logical_sector,
+          `${access.base_bank}/${access.base_row}/${access.base_sector_in_row}`,
+          `${access.mapped_bank}/${access.row}/${access.sector_in_row}`,
+          requestLabel(access.request_id),
+        ];
+        for (const value of values) {
+          const td = document.createElement("td");
+          td.textContent = String(value);
+          row.appendChild(td);
+        }
+        body.appendChild(row);
+      }
+      table.append(head, body);
+      accessList.appendChild(table);
+      if (mappingResult.total > mappings.length) {
+        const note = document.createElement("div");
+        note.className = "empty";
+        note.textContent = `Showing ${mappings.length} of ${mappingResult.total} raw mappings.`;
+        accessList.appendChild(note);
+      }
+    }
+
+    function addSvgText(svg, x, y, text, fill = "#91a6b8", size = 10, anchor = "start") {
+      const node = svgEl("text");
+      node.setAttribute("x", x);
+      node.setAttribute("y", y);
+      node.setAttribute("fill", fill);
+      node.setAttribute("font-size", size);
+      node.setAttribute("text-anchor", anchor);
+      node.textContent = text;
+      svg.appendChild(node);
+      return node;
+    }
+
+    function renderHistogram() {
+      const scope = scopeData();
+      const summary = scope.summary;
+      const svg = el("histogram");
+      svg.innerHTML = "";
+      const left = 48;
+      const right = 1175;
+      const top = 25;
+      const bottom = 285;
+      const plotHeight = bottom - top;
+      const width = right - left;
+      let values;
+      if (state.metric === "cycles") values = scope.banks.map((bank) => bank.total_cycles);
+      else if (state.metric === "jobs") values = scope.banks.map((bank) => bank.row_job_count);
+      else values = scope.banks.map((bank) => bank.sector_count);
+      let maximum = Math.max(1, ...values);
+      if (state.metric === "cycles") maximum = Math.max(maximum, summary.cycles);
+      maximum *= 1.08;
+      for (let tick = 0; tick <= 4; tick += 1) {
+        const y = bottom - (tick / 4) * plotHeight;
+        const line = svgEl("line");
+        line.setAttribute("x1", left);
+        line.setAttribute("x2", right);
+        line.setAttribute("y1", y);
+        line.setAttribute("y2", y);
+        line.setAttribute("stroke", "#203543");
+        line.setAttribute("stroke-width", "1");
+        svg.appendChild(line);
+        addSvgText(svg, left - 7, y + 3, fmt((tick / 4) * maximum, 1), "#718a9d", 9, "end");
+      }
+      const slot = width / scope.banks.length;
+      const barWidth = Math.max(3, slot * .68);
+      scope.banks.forEach((bank, index) => {
+        const x = left + index * slot + (slot - barWidth) / 2;
+        if (state.metric === "cycles") {
+          const dataHeight = (bank.data_cycles / maximum) * plotHeight;
+          const rechargeHeight = (bank.recharge_cycles / maximum) * plotHeight;
+          const data = svgEl("rect");
+          data.setAttribute("x", x);
+          data.setAttribute("y", bottom - dataHeight);
+          data.setAttribute("width", barWidth);
+          data.setAttribute("height", dataHeight);
+          data.setAttribute("fill", "#42b7ef");
+          svg.appendChild(data);
+          const recharge = svgEl("rect");
+          recharge.setAttribute("x", x);
+          recharge.setAttribute("y", bottom - dataHeight - rechargeHeight);
+          recharge.setAttribute("width", barWidth);
+          recharge.setAttribute("height", rechargeHeight);
+          recharge.setAttribute("fill", "#ffbd59");
+          svg.appendChild(recharge);
+        } else {
+          const height = (values[index] / maximum) * plotHeight;
+          const bar = svgEl("rect");
+          bar.setAttribute("x", x);
+          bar.setAttribute("y", bottom - height);
+          bar.setAttribute("width", barWidth);
+          bar.setAttribute("height", height);
+          bar.setAttribute("fill", state.metric === "jobs" ? "#bc8cff" : "#42b7ef");
+          svg.appendChild(bar);
+        }
+        if (index % 4 === 0) addSvgText(svg, x + barWidth / 2, 304, String(index), "#718a9d", 8, "middle");
+      });
+      if (state.metric === "cycles") {
+        const references = [
+          [summary.cycles, "actual", "#bc8cff", "6 3"],
+          [summary.fixed_job_lower_bound_cycles, "fixed-job LB", "#70df9a", "5 3"],
+          [summary.sector_lower_bound_cycles, "sector LB", "#ffbd59", "2 3"],
+        ];
+        references.forEach(([value, name, color, dash], index) => {
+          const y = bottom - (value / maximum) * plotHeight;
+          const line = svgEl("line");
+          line.setAttribute("x1", left);
+          line.setAttribute("x2", right);
+          line.setAttribute("y1", y);
+          line.setAttribute("y2", y);
+          line.setAttribute("stroke", color);
+          line.setAttribute("stroke-width", "1.5");
+          line.setAttribute("stroke-dasharray", dash);
+          svg.appendChild(line);
+          addSvgText(svg, right - 3, Math.max(top + 10 + index * 11, y - 3), `${name} ${fmt(value)} cy`, color, 9, "end");
+        });
+      }
+      addSvgText(svg, (left + right) / 2, 325, "physical bank index", "#91a6b8", 10, "middle");
+
+      const legend = el("hist-legend");
+      legend.innerHTML = "";
+      const items = state.metric === "cycles"
+        ? [["#42b7ef", "data cycles"], ["#ffbd59", "recharge cycles"], ["#bc8cff", "actual makespan"], ["#70df9a", "fixed-row-job LB"], ["#ffbd59", "absolute sector LB"]]
+        : [[state.metric === "jobs" ? "#bc8cff" : "#42b7ef", state.metric === "jobs" ? "row jobs per bank" : "sectors per bank"]];
+      for (const [color, label] of items) {
+        const item = document.createElement("span");
+        const swatch = document.createElement("i");
+        swatch.className = "swatch";
+        swatch.style.background = color;
+        item.append(swatch, document.createTextNode(label));
+        legend.appendChild(item);
+      }
+    }
+
+    function renderAll() {
+      renderScenarioControls();
+      renderCopy();
+      renderVariants();
+      renderDiagnostics();
+      renderKpis();
+      renderMatrixMaps();
+      renderTopology();
+      renderInspector();
+      renderHistogram();
+    }
+
+    function renderScopeOnly() {
+      renderScenarioControls();
+      renderCopy();
+      renderDiagnostics();
+      renderKpis();
+      renderTopology();
+      renderInspector();
+      renderHistogram();
+    }
+
+    function stepRequest(delta) {
+      const sequence = ["all", ...currentWave().requests.map((request) => String(request.request_id))];
+      let index = sequence.indexOf(String(state.request));
+      if (index < 0) index = 0;
+      state.request = sequence[(index + delta + sequence.length) % sequence.length];
+      renderScopeOnly();
+    }
+
+    el("scenario-select").addEventListener("change", (event) => {
+      stopPlayback();
+      state.scenario = Number(event.target.value);
+      state.variant = 0;
+      state.wave = 0;
+      state.request = "all";
+      state.bank = 0;
+      state.matrixOperand = "A";
+      state.matrixBlock = Number.MAX_SAFE_INTEGER;
+      renderAll();
+    });
+    el("wave-select").addEventListener("change", (event) => {
+      stopPlayback();
+      state.wave = Number(event.target.value);
+      state.request = "all";
+      state.bank = 0;
+      state.matrixBlock = Number.MAX_SAFE_INTEGER;
+      renderAll();
+    });
+    el("request-select").addEventListener("change", (event) => {
+      stopPlayback();
+      state.request = event.target.value;
+      renderScopeOnly();
+    });
+    el("prev-request").addEventListener("click", () => { stopPlayback(); stepRequest(-1); });
+    el("next-request").addEventListener("click", () => { stopPlayback(); stepRequest(1); });
+    el("play-request").addEventListener("click", () => {
+      if (state.timer !== null) {
+        stopPlayback();
+        return;
+      }
+      if (state.request === "all" && currentWave().requests.length) {
+        state.request = String(currentWave().requests[0].request_id);
+        renderScopeOnly();
+      }
+      el("play-request").textContent = "Ⅱ";
+      state.timer = window.setInterval(() => stepRequest(1), 750);
+    });
+    document.querySelectorAll("[data-metric]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.metric = button.dataset.metric;
+        document.querySelectorAll("[data-metric]").forEach((item) => item.classList.toggle("active", item === button));
+        renderHistogram();
+      });
+    });
+
+    el("page-title").textContent = DATA.title;
+    el("page-subtitle").textContent = DATA.subtitle;
+    renderAll();
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Preserve source and data bytes across platforms.
+* -text
+*.npz binary
+*.npy binary
+*.pdf binary
+*.png binary

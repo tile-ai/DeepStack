@@ -1,0 +1,66 @@
+cff-version: 1.2.0
+message: "If you use this artifact, please cite the DeepStack paper and artifact."
+title: "DeepStack reproducibility artifact"
+type: software
+version: 1.0.0
+doi: 10.5281/zenodo.21351389
+authors:
+  - given-names: Zhiwen
+    family-names: Mo
+  - given-names: Guoyu
+    family-names: Li
+  - given-names: Hao (Mark)
+    family-names: Chen
+  - given-names: Yu
+    family-names: Cheng
+  - given-names: Zhengju
+    family-names: Tang
+  - given-names: Qianzhou
+    family-names: Wang
+  - given-names: Lei
+    family-names: Wang
+  - given-names: Shuang
+    family-names: Liang
+  - given-names: Lingxiao
+    family-names: Ma
+  - given-names: Yuxiao
+    family-names: Guo
+  - given-names: Wayne
+    family-names: Luk
+  - given-names: Jilong
+    family-names: Xue
+  - given-names: Hongxiang
+    family-names: Fan
+preferred-citation:
+  type: conference-paper
+  title: "DeepStack: Facilitating Co-Design Exploration of 3D DRAM-Stacked Accelerators for Distributed LLM Inference"
+  year: 2026
+  conference:
+    name: "59th IEEE/ACM International Symposium on Microarchitecture (MICRO 2026)"
+  authors:
+    - given-names: Zhiwen
+      family-names: Mo
+    - given-names: Guoyu
+      family-names: Li
+    - given-names: Hao (Mark)
+      family-names: Chen
+    - given-names: Yu
+      family-names: Cheng
+    - given-names: Zhengju
+      family-names: Tang
+    - given-names: Qianzhou
+      family-names: Wang
+    - given-names: Lei
+      family-names: Wang
+    - given-names: Shuang
+      family-names: Liang
+    - given-names: Lingxiao
+      family-names: Ma
+    - given-names: Yuxiao
+      family-names: Guo
+    - given-names: Wayne
+      family-names: Luk
+    - given-names: Jilong
+      family-names: Xue
+    - given-names: Hongxiang
+      family-names: Fan

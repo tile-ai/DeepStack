@@ -1,0 +1,2060 @@
+{
+    "configuration": {
+        "iter": 128,
+        "n_routed_experts": 256,
+        "n_group": 1,
+        "topk_group": 1,
+        "num_experts_per_tok": 8,
+        "output_dir": "../data/routing_outputs"
+    },
+    "routing_results": {
+        "token_0": {
+            "selected_experts": [
+                23,
+                57,
+                59,
+                67,
+                150,
+                156,
+                180,
+                190
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_1": {
+            "selected_experts": [
+                7,
+                23,
+                48,
+                49,
+                67,
+                123,
+                131,
+                205
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_2": {
+            "selected_experts": [
+                64,
+                67,
+                122,
+                213,
+                232,
+                239,
+                246,
+                247
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_3": {
+            "selected_experts": [
+                10,
+                69,
+                74,
+                78,
+                120,
+                122,
+                170,
+                243
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_4": {
+            "selected_experts": [
+                107,
+                130,
+                138,
+                147,
+                153,
+                168,
+                177,
+                229
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_5": {
+            "selected_experts": [
+                50,
+                116,
+                157,
+                177,
+                186,
+                190,
+                197,
+                234
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_6": {
+            "selected_experts": [
+                17,
+                32,
+                45,
+                49,
+                143,
+                169,
+                184,
+                236
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_7": {
+            "selected_experts": [
+                26,
+                92,
+                106,
+                160,
+                161,
+                166,
+                182,
+                235
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_8": {
+            "selected_experts": [
+                94,
+                151,
+                178,
+                181,
+                210,
+                211,
+                221,
+                254
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_9": {
+            "selected_experts": [
+                11,
+                16,
+                45,
+                59,
+                82,
+                106,
+                129,
+                204
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_10": {
+            "selected_experts": [
+                4,
+                22,
+                47,
+                56,
+                84,
+                165,
+                185,
+                251
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_11": {
+            "selected_experts": [
+                6,
+                83,
+                99,
+                110,
+                145,
+                158,
+                187,
+                222
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_12": {
+            "selected_experts": [
+                2,
+                6,
+                51,
+                60,
+                74,
+                128,
+                146,
+                199
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_13": {
+            "selected_experts": [
+                5,
+                47,
+                51,
+                62,
+                98,
+                144,
+                169,
+                174
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_14": {
+            "selected_experts": [
+                67,
+                71,
+                99,
+                104,
+                116,
+                143,
+                144,
+                231
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_15": {
+            "selected_experts": [
+                80,
+                90,
+                142,
+                154,
+                164,
+                179,
+                212,
+                255
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_16": {
+            "selected_experts": [
+                103,
+                112,
+                120,
+                140,
+                169,
+                172,
+                205,
+                254
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_17": {
+            "selected_experts": [
+                1,
+                51,
+                95,
+                120,
+                131,
+                174,
+                219,
+                243
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_18": {
+            "selected_experts": [
+                19,
+                30,
+                122,
+                123,
+                162,
+                190,
+                205,
+                224
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_19": {
+            "selected_experts": [
+                41,
+                53,
+                73,
+                78,
+                135,
+                165,
+                216,
+                233
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_20": {
+            "selected_experts": [
+                3,
+                6,
+                55,
+                59,
+                113,
+                163,
+                197,
+                252
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_21": {
+            "selected_experts": [
+                25,
+                28,
+                39,
+                42,
+                69,
+                90,
+                158,
+                241
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_22": {
+            "selected_experts": [
+                17,
+                27,
+                53,
+                69,
+                115,
+                125,
+                186,
+                251
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_23": {
+            "selected_experts": [
+                31,
+                39,
+                47,
+                53,
+                62,
+                187,
+                201,
+                246
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_24": {
+            "selected_experts": [
+                35,
+                53,
+                112,
+                151,
+                155,
+                169,
+                171,
+                189
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_25": {
+            "selected_experts": [
+                5,
+                40,
+                79,
+                81,
+                165,
+                193,
+                237,
+                251
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_26": {
+            "selected_experts": [
+                98,
+                104,
+                106,
+                134,
+                144,
+                154,
+                156,
+                217
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_27": {
+            "selected_experts": [
+                0,
+                60,
+                61,
+                66,
+                77,
+                101,
+                113,
+                221
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_28": {
+            "selected_experts": [
+                39,
+                134,
+                136,
+                202,
+                207,
+                232,
+                245,
+                254
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_29": {
+            "selected_experts": [
+                26,
+                113,
+                118,
+                123,
+                152,
+                190,
+                216,
+                245
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_30": {
+            "selected_experts": [
+                24,
+                42,
+                61,
+                83,
+                167,
+                182,
+                193,
+                214
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_31": {
+            "selected_experts": [
+                62,
+                69,
+                97,
+                99,
+                102,
+                105,
+                116,
+                179
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_32": {
+            "selected_experts": [
+                5,
+                36,
+                78,
+                88,
+                102,
+                160,
+                179,
+                203
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_33": {
+            "selected_experts": [
+                75,
+                112,
+                124,
+                134,
+                164,
+                174,
+                241,
+                243
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_34": {
+            "selected_experts": [
+                24,
+                110,
+                117,
+                124,
+                129,
+                145,
+                196,
+                215
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_35": {
+            "selected_experts": [
+                3,
+                86,
+                150,
+                151,
+                158,
+                211,
+                245,
+                255
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_36": {
+            "selected_experts": [
+                16,
+                37,
+                104,
+                128,
+                130,
+                156,
+                181,
+                225
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_37": {
+            "selected_experts": [
+                30,
+                35,
+                71,
+                152,
+                179,
+                180,
+                190,
+                254
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_38": {
+            "selected_experts": [
+                39,
+                51,
+                96,
+                98,
+                117,
+                162,
+                173,
+                176
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_39": {
+            "selected_experts": [
+                34,
+                49,
+                73,
+                74,
+                103,
+                201,
+                211,
+                237
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_40": {
+            "selected_experts": [
+                11,
+                37,
+                85,
+                141,
+                145,
+                163,
+                218,
+                236
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_41": {
+            "selected_experts": [
+                26,
+                68,
+                94,
+                154,
+                161,
+                170,
+                241,
+                244
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_42": {
+            "selected_experts": [
+                18,
+                40,
+                89,
+                108,
+                114,
+                116,
+                147,
+                252
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_43": {
+            "selected_experts": [
+                47,
+                157,
+                162,
+                186,
+                197,
+                215,
+                225,
+                233
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_44": {
+            "selected_experts": [
+                33,
+                49,
+                181,
+                206,
+                214,
+                230,
+                246,
+                251
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_45": {
+            "selected_experts": [
+                23,
+                69,
+                137,
+                138,
+                156,
+                184,
+                197,
+                253
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_46": {
+            "selected_experts": [
+                75,
+                78,
+                156,
+                192,
+                197,
+                203,
+                230,
+                241
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_47": {
+            "selected_experts": [
+                13,
+                25,
+                55,
+                76,
+                89,
+                141,
+                169,
+                188
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_48": {
+            "selected_experts": [
+                51,
+                71,
+                102,
+                107,
+                135,
+                137,
+                200,
+                233
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_49": {
+            "selected_experts": [
+                25,
+                53,
+                54,
+                59,
+                71,
+                92,
+                152,
+                241
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_50": {
+            "selected_experts": [
+                45,
+                50,
+                60,
+                83,
+                119,
+                124,
+                210,
+                255
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_51": {
+            "selected_experts": [
+                2,
+                21,
+                56,
+                89,
+                106,
+                198,
+                214,
+                241
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_52": {
+            "selected_experts": [
+                30,
+                97,
+                111,
+                117,
+                155,
+                180,
+                186,
+                231
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_53": {
+            "selected_experts": [
+                24,
+                83,
+                85,
+                92,
+                100,
+                124,
+                131,
+                161
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_54": {
+            "selected_experts": [
+                4,
+                30,
+                34,
+                119,
+                121,
+                221,
+                222,
+                230
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_55": {
+            "selected_experts": [
+                21,
+                41,
+                55,
+                107,
+                116,
+                157,
+                191,
+                240
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_56": {
+            "selected_experts": [
+                43,
+                106,
+                158,
+                198,
+                223,
+                225,
+                240,
+                246
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_57": {
+            "selected_experts": [
+                6,
+                45,
+                83,
+                122,
+                147,
+                165,
+                170,
+                193
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_58": {
+            "selected_experts": [
+                14,
+                86,
+                89,
+                93,
+                138,
+                142,
+                171,
+                201
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_59": {
+            "selected_experts": [
+                17,
+                53,
+                66,
+                84,
+                85,
+                90,
+                147,
+                188
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_60": {
+            "selected_experts": [
+                18,
+                95,
+                115,
+                161,
+                179,
+                188,
+                219,
+                222
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_61": {
+            "selected_experts": [
+                18,
+                125,
+                137,
+                180,
+                196,
+                234,
+                238,
+                250
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_62": {
+            "selected_experts": [
+                59,
+                66,
+                71,
+                99,
+                134,
+                146,
+                156,
+                209
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_63": {
+            "selected_experts": [
+                11,
+                16,
+                76,
+                138,
+                212,
+                226,
+                230,
+                251
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_64": {
+            "selected_experts": [
+                18,
+                67,
+                73,
+                93,
+                102,
+                171,
+                238,
+                248
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_65": {
+            "selected_experts": [
+                4,
+                39,
+                56,
+                68,
+                79,
+                172,
+                186,
+                230
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_66": {
+            "selected_experts": [
+                39,
+                105,
+                148,
+                176,
+                194,
+                195,
+                198,
+                207
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_67": {
+            "selected_experts": [
+                4,
+                20,
+                34,
+                35,
+                113,
+                147,
+                148,
+                164
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_68": {
+            "selected_experts": [
+                3,
+                23,
+                62,
+                92,
+                143,
+                160,
+                193,
+                208
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_69": {
+            "selected_experts": [
+                94,
+                126,
+                130,
+                143,
+                171,
+                177,
+                210,
+                249
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_70": {
+            "selected_experts": [
+                60,
+                62,
+                135,
+                142,
+                171,
+                176,
+                187,
+                236
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_71": {
+            "selected_experts": [
+                14,
+                18,
+                27,
+                54,
+                171,
+                176,
+                200,
+                210
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_72": {
+            "selected_experts": [
+                6,
+                58,
+                99,
+                136,
+                151,
+                184,
+                238,
+                241
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_73": {
+            "selected_experts": [
+                12,
+                30,
+                92,
+                123,
+                140,
+                142,
+                232,
+                239
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_74": {
+            "selected_experts": [
+                21,
+                34,
+                52,
+                143,
+                149,
+                205,
+                230,
+                240
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_75": {
+            "selected_experts": [
+                18,
+                74,
+                83,
+                109,
+                125,
+                145,
+                196,
+                202
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_76": {
+            "selected_experts": [
+                78,
+                109,
+                144,
+                149,
+                179,
+                214,
+                240,
+                251
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_77": {
+            "selected_experts": [
+                3,
+                53,
+                96,
+                137,
+                166,
+                208,
+                233,
+                250
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_78": {
+            "selected_experts": [
+                22,
+                78,
+                94,
+                148,
+                155,
+                178,
+                229,
+                238
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_79": {
+            "selected_experts": [
+                14,
+                35,
+                136,
+                148,
+                168,
+                194,
+                232,
+                252
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_80": {
+            "selected_experts": [
+                24,
+                105,
+                119,
+                151,
+                158,
+                183,
+                244,
+                250
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_81": {
+            "selected_experts": [
+                31,
+                60,
+                95,
+                117,
+                159,
+                182,
+                239,
+                244
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_82": {
+            "selected_experts": [
+                17,
+                26,
+                36,
+                38,
+                61,
+                95,
+                197,
+                217
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_83": {
+            "selected_experts": [
+                10,
+                20,
+                29,
+                45,
+                72,
+                152,
+                208,
+                209
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_84": {
+            "selected_experts": [
+                47,
+                53,
+                90,
+                126,
+                137,
+                186,
+                238,
+                246
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_85": {
+            "selected_experts": [
+                27,
+                79,
+                92,
+                100,
+                107,
+                189,
+                220,
+                253
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_86": {
+            "selected_experts": [
+                46,
+                52,
+                53,
+                86,
+                105,
+                134,
+                205,
+                230
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_87": {
+            "selected_experts": [
+                36,
+                73,
+                88,
+                131,
+                157,
+                177,
+                178,
+                191
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_88": {
+            "selected_experts": [
+                48,
+                95,
+                138,
+                165,
+                173,
+                181,
+                246,
+                250
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_89": {
+            "selected_experts": [
+                0,
+                41,
+                69,
+                100,
+                144,
+                145,
+                178,
+                210
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_90": {
+            "selected_experts": [
+                1,
+                140,
+                142,
+                161,
+                166,
+                172,
+                174,
+                218
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_91": {
+            "selected_experts": [
+                5,
+                6,
+                38,
+                97,
+                171,
+                188,
+                191,
+                232
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_92": {
+            "selected_experts": [
+                90,
+                110,
+                119,
+                130,
+                169,
+                171,
+                187,
+                207
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_93": {
+            "selected_experts": [
+                2,
+                47,
+                77,
+                95,
+                123,
+                204,
+                226,
+                246
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_94": {
+            "selected_experts": [
+                2,
+                89,
+                95,
+                106,
+                109,
+                113,
+                134,
+                243
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_95": {
+            "selected_experts": [
+                16,
+                80,
+                84,
+                85,
+                98,
+                209,
+                218,
+                236
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_96": {
+            "selected_experts": [
+                23,
+                27,
+                44,
+                96,
+                99,
+                172,
+                175,
+                235
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_97": {
+            "selected_experts": [
+                1,
+                27,
+                54,
+                126,
+                200,
+                206,
+                210,
+                242
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_98": {
+            "selected_experts": [
+                33,
+                86,
+                91,
+                99,
+                157,
+                176,
+                186,
+                247
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_99": {
+            "selected_experts": [
+                8,
+                17,
+                78,
+                112,
+                145,
+                183,
+                196,
+                238
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_100": {
+            "selected_experts": [
+                7,
+                65,
+                70,
+                120,
+                121,
+                134,
+                231,
+                254
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_101": {
+            "selected_experts": [
+                0,
+                11,
+                129,
+                141,
+                153,
+                162,
+                188,
+                210
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_102": {
+            "selected_experts": [
+                20,
+                40,
+                55,
+                80,
+                156,
+                168,
+                180,
+                184
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_103": {
+            "selected_experts": [
+                0,
+                59,
+                101,
+                150,
+                189,
+                198,
+                221,
+                226
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_104": {
+            "selected_experts": [
+                120,
+                144,
+                155,
+                160,
+                216,
+                223,
+                246,
+                250
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_105": {
+            "selected_experts": [
+                22,
+                46,
+                138,
+                149,
+                164,
+                206,
+                218,
+                249
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_106": {
+            "selected_experts": [
+                13,
+                85,
+                101,
+                157,
+                174,
+                177,
+                199,
+                242
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_107": {
+            "selected_experts": [
+                32,
+                53,
+                56,
+                63,
+                115,
+                169,
+                202,
+                233
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_108": {
+            "selected_experts": [
+                63,
+                101,
+                107,
+                108,
+                142,
+                154,
+                167,
+                218
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_109": {
+            "selected_experts": [
+                26,
+                30,
+                37,
+                51,
+                127,
+                195,
+                222,
+                231
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_110": {
+            "selected_experts": [
+                45,
+                89,
+                90,
+                109,
+                119,
+                137,
+                215,
+                218
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_111": {
+            "selected_experts": [
+                85,
+                155,
+                159,
+                174,
+                185,
+                197,
+                244,
+                246
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_112": {
+            "selected_experts": [
+                24,
+                44,
+                68,
+                98,
+                159,
+                176,
+                210,
+                253
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_113": {
+            "selected_experts": [
+                20,
+                27,
+                29,
+                61,
+                123,
+                137,
+                171,
+                206
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_114": {
+            "selected_experts": [
+                18,
+                23,
+                25,
+                46,
+                95,
+                132,
+                141,
+                149
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_115": {
+            "selected_experts": [
+                45,
+                55,
+                149,
+                158,
+                187,
+                199,
+                216,
+                231
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_116": {
+            "selected_experts": [
+                39,
+                52,
+                142,
+                159,
+                179,
+                183,
+                194,
+                242
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_117": {
+            "selected_experts": [
+                24,
+                71,
+                129,
+                162,
+                216,
+                231,
+                232,
+                246
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_118": {
+            "selected_experts": [
+                61,
+                64,
+                68,
+                112,
+                145,
+                204,
+                231,
+                247
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_119": {
+            "selected_experts": [
+                11,
+                71,
+                116,
+                139,
+                150,
+                168,
+                198,
+                229
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_120": {
+            "selected_experts": [
+                28,
+                55,
+                73,
+                131,
+                174,
+                193,
+                209,
+                243
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_121": {
+            "selected_experts": [
+                65,
+                123,
+                126,
+                135,
+                160,
+                163,
+                222,
+                243
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_122": {
+            "selected_experts": [
+                39,
+                55,
+                81,
+                120,
+                145,
+                167,
+                212,
+                222
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_123": {
+            "selected_experts": [
+                21,
+                106,
+                108,
+                115,
+                144,
+                152,
+                203,
+                241
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_124": {
+            "selected_experts": [
+                29,
+                95,
+                100,
+                124,
+                129,
+                157,
+                168,
+                207
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_125": {
+            "selected_experts": [
+                17,
+                25,
+                59,
+                166,
+                204,
+                206,
+                223,
+                228
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_126": {
+            "selected_experts": [
+                28,
+                54,
+                73,
+                117,
+                153,
+                164,
+                219,
+                228
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        },
+        "token_127": {
+            "selected_experts": [
+                11,
+                23,
+                79,
+                89,
+                120,
+                165,
+                226,
+                242
+            ],
+            "selected_groups": [
+                0
+            ],
+            "k_per_group": 8
+        }
+    }
+}
