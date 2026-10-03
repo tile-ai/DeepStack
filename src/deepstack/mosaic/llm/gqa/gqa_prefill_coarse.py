@@ -593,15 +593,15 @@ def gqa_prefill_coarse_stage6(bs:int, seq:int, hidden:int, num_head:int, num_kv_
     all_reduce_traffic = None
     if (parallel.tp > 1 and next_parallel.tp == parallel.tp):
         all_reduce_latency, all_reduce_ext_max, all_reduce_traffic = all_reduce_wrapper(all_reduce_op_bytes=atten_bytes, parallel=parallel, noc_hierarchy=noc_hierarchy, granularity=granularity, 
-            dim_to_process="tp", bytes=shard_bs*shard_seq*shard_hidden*out_bytes)
+            dim_to_process="tp", bytes=shard_bs*shard_seq*hidden*out_bytes)
     elif (parallel.tp > 1 and next_parallel.ep !=1 and (parallel.tp * parallel.sp *parallel.dp == next_parallel.tp * next_parallel.ep * next_parallel.sp * next_parallel.dp)):
         
         all_reduce_latency, all_reduce_ext_max, all_reduce_traffic = reduce_partial_brodcast_wrapper(all_reduce_op_bytes=atten_bytes, parallel=parallel, noc_hierarchy=noc_hierarchy, granularity=granularity,
-            dim_to_process="tp", broadcast_degree=next_parallel.tp, bytes=shard_bs*shard_seq*shard_hidden*out_bytes)
+            dim_to_process="tp", broadcast_degree=next_parallel.tp, bytes=shard_bs*shard_seq*hidden*out_bytes)
 
         # tmp fix
         all_reduce_latency_2, all_reduce_ext_max_2, all_reduce_traffic_2 = all_reduce_wrapper(all_reduce_op_bytes=atten_bytes, parallel=parallel, noc_hierarchy=noc_hierarchy, granularity=granularity, 
-            dim_to_process="tp", bytes=shard_bs*shard_seq*shard_hidden*out_bytes)
+            dim_to_process="tp", bytes=shard_bs*shard_seq*hidden*out_bytes)
 
         all_reduce_latency = min(all_reduce_latency, all_reduce_latency_2)
         all_reduce_ext_max = min(all_reduce_ext_max, all_reduce_ext_max_2)

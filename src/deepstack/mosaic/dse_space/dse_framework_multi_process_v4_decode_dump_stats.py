@@ -420,14 +420,16 @@ def modeling_decode(model_arch:LLM_Arch, bs:int, seq:int, cached_kv_list:list[in
         time_gqa_list, gpq_op_stats_list = gqa_decode_kv_list_top(bs=bs, seq=seq, cached_kv_list=cached_kv_list, hidden=hidden, num_head=model_arch.gqa_arch.num_head, num_kv_head=model_arch.gqa_arch.num_kv_head, head_dim=model_arch.gqa_arch.head_dim, parallel=parallel, atten_parallel=parallel, next_parallel=parallel, atten_bytes=model_arch.gqa_arch.atten_bytes, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
         time_gqa_list = [x * shard_layer for x in time_gqa_list]
         
-        model_stats.add(gpq_op_stats_list[middle_kv_idx], n=shard_layer)
+        if gpq_op_stats_list is not None:
+            model_stats.add(gpq_op_stats_list[middle_kv_idx], n=shard_layer)
     else:
         time_gqa_list = [0] * len(cached_kv_list)
 
     if model_arch.mla_arch is not None:
         time_mla_list, mla_op_stats_list = mla_decode_kv_list_top(bs=bs, seq=seq, cached_kv_list=cached_kv_list, model_arch=model_arch, parallel=parallel, atten_parallel=parallel, next_parallel=parallel, granularity=granularity, single_chip=single_chip, noc_hierarchy=noc_hierarchy)
         time_mla_list = [x * shard_layer for x in time_mla_list]
-        model_stats.add(mla_op_stats_list[middle_kv_idx], n=shard_layer)
+        if mla_op_stats_list is not None:
+            model_stats.add(mla_op_stats_list[middle_kv_idx], n=shard_layer)
     else:
         time_mla_list = [0] * len(cached_kv_list)
 

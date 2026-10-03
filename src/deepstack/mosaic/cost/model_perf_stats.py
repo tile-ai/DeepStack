@@ -96,6 +96,8 @@ class ModelPerfStats:
         n is the occurrence count in the full model and may be an integer or a float,
         for example for fractional pipeline-stage weights.
         """
+        if op_stats is None:
+            return
         self._entries.append((float(n), op_stats))
 
     # ────────────────────────────────────────────────────────────────────────
