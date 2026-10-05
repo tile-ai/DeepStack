@@ -200,10 +200,15 @@ def build_extended_energy_matrix_switch_only(
     energy = np.zeros((ext_size, ext_size), dtype=np.float64)
 
     def iter_prefix_coords(upto_exclusive: int):
+        # One prefix per switch instance of layer upto_exclusive: every port
+        # coordinate of each outer layer, matching the traffic matrix keys.
         if upto_exclusive <= 0:
             yield []
             return
-        ranges = [[anchors[li]] for li in range(upto_exclusive)]
+        ranges = [
+            [(r, c) for r in range(h.layers[li].shape[0]) for c in range(h.layers[li].shape[1])]
+            for li in range(upto_exclusive)
+        ]
         def rec(idx, acc):
             if idx == len(ranges):
                 yield list(acc); return

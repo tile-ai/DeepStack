@@ -1307,8 +1307,12 @@ def build_extended_traffic_matrix_switch_only(tm: "TrafficMatrix", h: Hierarchy)
                 if layer_idx is None:
                     continue
                 L = len(h.layers)
-                prev_norm = [anchors[li] if li != layer_idx else prev[li] for li in range(L)]
-                cur_norm  = [anchors[li] if li != layer_idx else cur[li]  for li in range(L)]
+                # A hop at layer_idx runs on the switch instance selected by the
+                # outer (lower-index) coordinates. Keep them so that equally
+                # numbered ports of different switches stay different links, and
+                # anchor only the layers below the hop.
+                prev_norm = [prev[li] if li <= layer_idx else anchors[li] for li in range(L)]
+                cur_norm  = [cur[li]  if li <= layer_idx else anchors[li] for li in range(L)]
                 a_eid = coords2eid(prev_norm)
                 b_eid = coords2eid(cur_norm)
                 traffic[a_eid, b_eid] += float(ch.bytes)
@@ -1380,10 +1384,12 @@ def _build_extended_indexer_switch_only(h: Hierarchy):
 def build_extended_bandwidth_matrix_switch_only(h: Hierarchy) -> np.ndarray:
     """Build the extended bandwidth matrix for a three-level all-switch hierarchy.
     At each level, connect its center anchor (-1,-1) bidirectionally to physical
-    ports (0,p), using link_bandwidth. Combine duplicate edge capacities by maximum,
-    not summation. If center bandwidths are set, the center self-loop uses
-    center_in_bw + center_out_bw, also combined by maximum. Other levels use anchor
-    coordinates so all edges share one extended coordinate system.
+    ports (0,p), using link_bandwidth, for every switch instance of that level:
+    outer levels take each of their coordinates, inner levels the anchor,
+    matching build_extended_traffic_matrix_switch_only. Combine
+    duplicate edge capacities by maximum, not summation. If center bandwidths are
+    set, the center self-loop uses center_in_bw + center_out_bw, also combined by
+    maximum.
     """
     for topo in h.layers:
         if topo.kind != TopoKind.SWITCH:
@@ -1394,17 +1400,18 @@ def build_extended_bandwidth_matrix_switch_only(h: Hierarchy) -> np.ndarray:
     bw = np.zeros((ext_size, ext_size), dtype=np.float64)
 
     def iter_prefix_coords(upto_exclusive: int):
-        """Return coordinate combinations for layers 0 through upto_exclusive-1.
-        (Does each layer contain only (-1,-1) or port coordinates? For SWITCH,
-        port coordinates are used only at the current layer.)
+        """Return coordinate combinations for layers 0 through upto_exclusive-1:
+        every port coordinate of each outer layer, i.e. one prefix per switch
+        instance of layer upto_exclusive. Routes never cross a layer while an
+        outer layer sits at its anchor, so anchors are not enumerated.
         """
         if upto_exclusive <= 0:
             yield []
             return
         ranges = []
         for li in range(upto_exclusive):
-            topo = h.layers[li]
-            ranges.append([anchors[li]])
+            M, N = h.layers[li].shape
+            ranges.append([(r, c) for r in range(M) for c in range(N)])
         def rec(idx, acc):
             if idx == len(ranges):
                 yield list(acc); return
