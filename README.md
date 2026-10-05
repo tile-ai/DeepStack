@@ -117,6 +117,36 @@ bandwidth, latency and energy inputs. Pass the returned hierarchy as
 `noc_hierarchy` to `modeling_decode` or `modeling_prefill`, with parallelism
 matching its device count. The DSE example uses `h200x32()` by default.
 
+## Collectives
+
+The wrappers in [`mosaic.collectives`](src/deepstack/mosaic/collectives) price
+one collective on any `Hierarchy` and return `(hop_latency_s, link_time_s,
+traffic)` for the fastest algorithm they model. `bytes` is the full tensor on
+each device: the buffer an all-reduce reduces, the input a reduce-scatter
+splits, or the output an all-gather assembles. Ranks are grouped TP, EP, SP,
+CP, DP, PP from the innermost NoC level outwards, so a TP group shares the
+innermost switch when it fits there.
+
+```python
+from mosaic.collectives import all_gather_wrapper, all_reduce_wrapper, reduce_scatter_wrapper
+from mosaic.noc.noc_topo import Hierarchy, PortSpread, make_switch
+from mosaic.parallelism import ParallelScheme
+from mosaic.utils import Modeling_Granularity
+
+# Four switched nodes of eight devices; bandwidth (bytes/s) and latency (s) are illustrative.
+nodes = Hierarchy(
+    layers=[make_switch(1, hop_latency=0.0, link_bandwidth=50e9),
+            make_switch(4, hop_latency=5e-6, link_bandwidth=50e9),
+            make_switch(8, hop_latency=1e-6, link_bandwidth=450e9)],
+    port_spread=PortSpread.EVEN, name="4x8",
+)
+parallel = ParallelScheme(tp=8, dp=4)
+granularity = Modeling_Granularity("coarse", True, False)
+for wrapper in (all_reduce_wrapper, reduce_scatter_wrapper, all_gather_wrapper):
+    hop_s, link_s, _ = wrapper(None, parallel, nodes, granularity, "tp", 64 * 2**20)
+    print(f"{wrapper.__name__}: {(hop_s + link_s) * 1e6:.1f} us")
+```
+
 ## Routing data
 
 The selected routing arrays are packaged with the model:
