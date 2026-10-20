@@ -1,0 +1,5 @@
+{
+  "checks": 11877,
+  "failures": [],
+  "scope": "11 q01/q02 profile states, SM/cluster/DRAM/design-point clones, 49 NoC IDs and capacity queries; not exhaustive API validation"
+}

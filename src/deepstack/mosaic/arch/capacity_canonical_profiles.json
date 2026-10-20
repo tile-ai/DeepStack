@@ -1,0 +1,923 @@
+{
+  "architectures": {
+    "stacked_gpu_base": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_large_matrix": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        16,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 512,
+      "int32_cores_per_sm": 128,
+      "fp32_cores_per_sm": 128,
+      "sfu_cores_per_sm": 32,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_large_vector": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 128,
+      "fp32_cores_per_sm": 128,
+      "sfu_cores_per_sm": 32,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_high_l1": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 512,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_high_l2": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 3276800000000.0
+    },
+    "stacked_gpu_high_noc": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_low_noc": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_reduced_sm": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": false,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_wgmma": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": true,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_cluster_8": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": true,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": 8,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 6291456,
+      "l2_bandwidth": 1638400000000.0
+    },
+    "stacked_gpu_cluster_16": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": true,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": 8,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 12582912,
+      "l2_bandwidth": 3276800000000.0
+    },
+    "stacked_gpu_cluster_32": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": true,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 256,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 64,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": 8,
+      "dram_layers_per_cluster": 4,
+      "dram_active_layers": 4,
+      "l2_capacity": 25165824,
+      "l2_bandwidth": 6553600000000.0
+    },
+    "H100_SCALED": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": true,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 128,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 128,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": null,
+      "dram_active_layers": null,
+      "l2_capacity": 52428800.0,
+      "l2_bandwidth": 9783919018000.0
+    },
+    "H200_SCALED": {
+      "register_capacity_per_sm": 262144,
+      "tensor_core_shape": [
+        8,
+        4,
+        16
+      ],
+      "support_wgmma": true,
+      "configurable_smem_capacity": 262144,
+      "l1_smem_throughput_per_cycle": 128,
+      "int32_cores_per_sm": 64,
+      "fp32_cores_per_sm": 128,
+      "sfu_cores_per_sm": 16,
+      "tensor_cores_per_sm": 4,
+      "xbar_quadratic_ref_sm": null,
+      "dram_layers_per_cluster": null,
+      "dram_active_layers": null,
+      "l2_capacity": 52428800.0,
+      "l2_bandwidth": 11783919018000.0
+    }
+  },
+  "noc_profiles": {
+    "0": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "1": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "2": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 1600000000000.0
+        }
+      ]
+    },
+    "3": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 3200000000000.0
+        }
+      ]
+    },
+    "4": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "5": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "6": {
+      "layers": [
+        {
+          "link_bandwidth": 112500000000.0
+        },
+        {
+          "link_bandwidth": 576000000000.0
+        },
+        {
+          "link_bandwidth": 1200000000000.0
+        }
+      ]
+    },
+    "7": {
+      "layers": [
+        {
+          "link_bandwidth": 60000000000.0
+        },
+        {
+          "link_bandwidth": 307200000000.0
+        },
+        {
+          "link_bandwidth": 640000000000.0
+        }
+      ]
+    },
+    "8": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 600000000000.0
+        }
+      ]
+    },
+    "9": {
+      "layers": [
+        {
+          "link_bandwidth": 100000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "10": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 960000000000.0
+        }
+      ]
+    },
+    "11": {
+      "layers": [
+        {
+          "link_bandwidth": 3700000000000.0
+        },
+        {
+          "link_bandwidth": 3700000000000.0
+        },
+        {
+          "link_bandwidth": 370000000000.0
+        }
+      ]
+    },
+    "12": {
+      "layers": [
+        {
+          "link_bandwidth": 3700000000000.0
+        },
+        {
+          "link_bandwidth": 3700000000000.0
+        },
+        {
+          "link_bandwidth": 370000000000.0
+        }
+      ]
+    },
+    "13": {
+      "layers": [
+        {
+          "link_bandwidth": 2000000000000.0
+        },
+        {
+          "link_bandwidth": 200000000000.0
+        },
+        {
+          "link_bandwidth": 450000000000.0
+        }
+      ]
+    },
+    "14": {
+      "layers": [
+        {
+          "link_bandwidth": 2000000000000.0
+        },
+        {
+          "link_bandwidth": 200000000000.0
+        },
+        {
+          "link_bandwidth": 450000000000.0
+        }
+      ]
+    },
+    "15": {
+      "layers": [
+        {
+          "link_bandwidth": 4000000000000.0
+        },
+        {
+          "link_bandwidth": 400000000000.0
+        },
+        {
+          "link_bandwidth": 450000000000.0
+        }
+      ]
+    },
+    "16": {
+      "layers": [
+        {
+          "link_bandwidth": 4000000000000.0
+        },
+        {
+          "link_bandwidth": 400000000000.0
+        },
+        {
+          "link_bandwidth": 450000000000.0
+        }
+      ]
+    },
+    "17": {
+      "layers": [
+        {
+          "link_bandwidth": 4000000000000.0
+        },
+        {
+          "link_bandwidth": 400000000000.0
+        },
+        {
+          "link_bandwidth": 450000000000.0
+        }
+      ]
+    },
+    "18": {
+      "layers": [
+        {
+          "link_bandwidth": 4000000000000.0
+        },
+        {
+          "link_bandwidth": 400000000000.0
+        },
+        {
+          "link_bandwidth": 450000000000.0
+        }
+      ]
+    },
+    "19": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "20": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "21": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "22": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "23": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "24": {
+      "layers": [
+        {
+          "link_bandwidth": 8000000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        },
+        {
+          "link_bandwidth": 757020000000.0
+        }
+      ]
+    },
+    "25": {
+      "layers": [
+        {
+          "link_bandwidth": 500000000000.0
+        },
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 370000000000.0
+        }
+      ]
+    },
+    "26": {
+      "layers": [
+        {
+          "link_bandwidth": 500000000000.0
+        },
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 370000000000.0
+        }
+      ]
+    },
+    "27": {
+      "layers": [
+        {
+          "link_bandwidth": 4000000000000.0
+        },
+        {
+          "link_bandwidth": 400000000000.0
+        },
+        {
+          "link_bandwidth": 225000000000.0
+        }
+      ]
+    },
+    "28": {
+      "layers": [
+        {
+          "link_bandwidth": 508000000000.0
+        },
+        {
+          "link_bandwidth": 50800000000.0
+        },
+        {
+          "link_bandwidth": 50800000000.0
+        }
+      ]
+    },
+    "29": {
+      "layers": [
+        {
+          "link_bandwidth": 8000000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        },
+        {
+          "link_bandwidth": 757020000000.0
+        }
+      ]
+    },
+    "30": {
+      "layers": [
+        {
+          "link_bandwidth": 2000000000000.0
+        },
+        {
+          "link_bandwidth": 200000000000.0
+        },
+        {
+          "link_bandwidth": 757020000000.0
+        }
+      ]
+    },
+    "31": {
+      "layers": [
+        {
+          "link_bandwidth": 500000000000.0
+        },
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 757020000000.0
+        }
+      ]
+    },
+    "32": {
+      "layers": [
+        {
+          "link_bandwidth": 1520000000000.0
+        },
+        {
+          "link_bandwidth": 152000000000.0
+        },
+        {
+          "link_bandwidth": 133000000000.0
+        }
+      ]
+    },
+    "33": {
+      "layers": [
+        {
+          "link_bandwidth": 1520000000000.0
+        },
+        {
+          "link_bandwidth": 152000000000.0
+        },
+        {
+          "link_bandwidth": 133000000000.0
+        }
+      ]
+    },
+    "34": {
+      "layers": [
+        {
+          "link_bandwidth": 800000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "35": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "36": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "37": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "38": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "39": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "40": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "41": {
+      "layers": [
+        {
+          "link_bandwidth": 75000000000.0
+        },
+        {
+          "link_bandwidth": 384000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "42": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "43": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "44": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "45": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "46": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "47": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    },
+    "48": {
+      "layers": [
+        {
+          "link_bandwidth": 50000000000.0
+        },
+        {
+          "link_bandwidth": 768000000000.0
+        },
+        {
+          "link_bandwidth": 800000000000.0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "artifact": "deepstack_open-1.0.0-py3-none-any.whl",
+  "sha256": "fdaa770cbd9d1f0137e5eda874e210761451e0c1e7ad68e6f0eb7e1ef521e2b1",
+  "native_modules": [],
+  "installed_capacity_smoke": 8,
+  "full_hardware_accuracy_target_met": false,
+  "fig08_points": 52,
+  "fig08_mape_pct": 8.366984880217403,
+  "integration_checks": 11877,
+  "integration_failures": 0,
+  "installed_smoke_scope": "Previous wheel installation; latest wheel adds cluster scaling corrections validated against native snapshots"
+}

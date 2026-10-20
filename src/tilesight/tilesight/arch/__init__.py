@@ -8,3 +8,4 @@ from .h100 import *
 from .mi325x import *
 from .b200 import *
 from .b6000 import *
+from .h100_sxm import H100_SXM
